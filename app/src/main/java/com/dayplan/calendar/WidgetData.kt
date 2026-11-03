@@ -13,11 +13,13 @@ import java.util.Locale
 sealed class Row {
     data class Head(val text: String) : Row()
     data class Empty(val text: String) : Row()
-    data class Event(val day: String, val time: String, val title: String, val color: Int) : Row()
+    data class Event(val time: String, val title: String, val color: Int) : Row()
     data class Goal(val id: String, val title: String, val sub: String, val done: Boolean, val late: Boolean) : Row()
 }
 
-/** What the widget shows: the next 7 days of events, then this month's and this year's goals. */
+data class DayItem(val allDay: Boolean, val start: String, val title: String, val color: Int)
+
+/** What the widget shows: a month grid with events, then the picked day's events and this month's goals. */
 object WidgetData {
     private val APP_COLORS = mapOf(
         "c1" to "#0d7558", "c2" to "#d4552f", "c3" to "#4a5bd0", "c4" to "#b97c06", "c5" to "#9a3fa8"
@@ -28,80 +30,79 @@ object WidgetData {
         (0 until a.length()).mapNotNull { a.optJSONObject(it) }
     } catch (e: Exception) { emptyList() }
 
+    private fun nth(d: LocalDate) = (d.dayOfMonth + 6) / 7
+    private fun lastWeek(d: LocalDate) = d.dayOfMonth + 7 > d.lengthOfMonth()
+
+    /** Same rules as occursOn() in the page. */
     private fun occursOn(ev: JSONObject, d: LocalDate): Boolean {
-        val base = runCatching { LocalDate.parse(ev.optString("date")) }.getOrNull() ?: return false
-        if (d.isBefore(base)) return false
-        if (d == base) return true
+        val b = runCatching { LocalDate.parse(ev.optString("date")) }.getOrNull() ?: return false
+        if (d.isBefore(b)) return false
+        if (d == b) return true
+        val wd = d.dayOfWeek == b.dayOfWeek
         return when (ev.optString("repeat")) {
-            "weekly" -> d.dayOfWeek == base.dayOfWeek
-            "monthly" -> d.dayOfMonth == base.dayOfMonth
-            "yearly" -> d.dayOfMonth == base.dayOfMonth && d.month == base.month
+            "weekly" -> wd
+            "monthly" -> d.dayOfMonth == b.dayOfMonth
+            "yearly" -> d.dayOfMonth == b.dayOfMonth && d.month == b.month
+            "monthnth" -> wd && nth(d) == nth(b)
+            "monthlast" -> wd && lastWeek(d)
+            "yearnth" -> d.month == b.month && wd && nth(d) == nth(b)
+            "yearlast" -> d.month == b.month && wd && lastWeek(d)
             else -> false
         }
     }
 
-    private fun dayLabel(d: LocalDate, today: LocalDate): String = when (d) {
-        today -> "오늘"
-        today.plusDays(1) -> "내일"
-        else -> "${d.monthValue}/${d.dayOfMonth} ${d.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.KOREAN)}"
-    }
-
-    private data class Item(val allDay: Boolean, val start: String, val title: String, val color: Int)
-
-    fun build(ctx: Context): List<Row> {
-        val rows = ArrayList<Row>()
-        val today = LocalDate.now()
-        val zone = ZoneId.systemDefault()
-
-        // Events: this app's own + the phone's calendars.
-        val byDay = HashMap<String, MutableList<Item>>()
-        for (d in 0L until 7L) {
-            val day = today.plusDays(d)
-            for (e in arr(ctx, "cal.events")) {
+    /** Events per day from [from] for [days] days: this app's own and the phone's calendars. */
+    fun eventsByDay(ctx: Context, from: LocalDate, days: Int): Map<LocalDate, List<DayItem>> {
+        val out = HashMap<LocalDate, MutableList<DayItem>>()
+        val own = arr(ctx, "cal.events")
+        for (i in 0 until days) {
+            val day = from.plusDays(i.toLong())
+            for (e in own) {
                 if (!occursOn(e, day)) continue
                 val all = e.optBoolean("allDay")
-                byDay.getOrPut(day.toString()) { mutableListOf() } += Item(
+                out.getOrPut(day) { mutableListOf() } += DayItem(
                     all, if (all) "" else e.optString("start"), e.optString("title"),
                     Color.parseColor(APP_COLORS[e.optString("color")] ?: "#0d7558")
                 )
             }
         }
-        val from = today.atStartOfDay(zone).toInstant().toEpochMilli()
-        val to = today.plusDays(7).atStartOfDay(zone).toInstant().toEpochMilli()
+        val zone = ZoneId.systemDefault()
+        val start = from.atStartOfDay(zone).toInstant().toEpochMilli()
+        val end = from.plusDays(days.toLong()).atStartOfDay(zone).toInstant().toEpochMilli()
         val timeFmt = java.text.SimpleDateFormat("HH:mm", Locale.US)
-        for (i in CalendarRepo.instances(ctx, from, to)) {
-            val color = if (i.color == 0) Color.parseColor("#1a62d6") else (i.color or 0xFF000000.toInt())
-            for (ds in CalendarRepo.days(i)) {
-                byDay.getOrPut(ds) { mutableListOf() } += Item(
-                    i.allDay, if (i.allDay) "" else timeFmt.format(i.begin), i.title.ifBlank { "(제목 없음)" }, color
+        for (inst in CalendarRepo.instances(ctx, start, end)) {
+            val color = if (inst.color == 0) Color.parseColor("#1a62d6") else (inst.color or 0xFF000000.toInt())
+            for (ds in CalendarRepo.days(inst)) {
+                val day = runCatching { LocalDate.parse(ds) }.getOrNull() ?: continue
+                out.getOrPut(day) { mutableListOf() } += DayItem(
+                    inst.allDay, if (inst.allDay) "" else timeFmt.format(inst.begin), inst.title.ifBlank { "(제목 없음)" }, color
                 )
             }
         }
-        rows += Row.Head("일정 · 7일")
-        var any = false
-        for (d in 0L until 7L) {
-            val day = today.plusDays(d)
-            val list = byDay[day.toString()] ?: continue
-            list.sortWith(compareBy<Item>({ !it.allDay }, { it.start }, { it.title }))
-            list.forEachIndexed { idx, it ->
-                rows += Row.Event(if (idx == 0) dayLabel(day, today) else "", if (it.allDay) "종일" else it.start, it.title, it.color)
-            }
-            any = true
-        }
-        if (!any) rows += Row.Empty(if (CalendarRepo.hasPermission(ctx)) "7일 동안 일정이 없어요" else "앱을 열어 캘린더 접근을 허용해 주세요")
+        out.values.forEach { it.sortWith(compareBy<DayItem>({ !it.allDay }, { it.start }, { it.title })) }
+        return out
+    }
 
-        // Goals.
-        val plans = arr(ctx, "cal.plans").map(::norm)
-        val year = today.year
+    /** The list under the grid: the picked day, then this month's goals. */
+    fun listRows(ctx: Context, sel: LocalDate): List<Row> {
+        val rows = ArrayList<Row>()
+        val today = LocalDate.now()
+        val dow = sel.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.KOREAN)
+        rows += Row.Head("${if (sel == today) "오늘 · " else ""}${sel.monthValue}월 ${sel.dayOfMonth}일 $dow")
+        val list = eventsByDay(ctx, sel, 1)[sel].orEmpty()
+        if (list.isEmpty()) rows += Row.Empty(if (CalendarRepo.hasPermission(ctx)) "일정이 없어요" else "앱을 열어 캘린더 접근을 허용해 주세요")
+        list.forEach { rows += Row.Event(if (it.allDay) "종일" else it.start, it.title, it.color) }
+
+        val plans = arr(ctx, "cal.plans")
         val month = YearMonth.from(today).toString()
         val goalTitle = plans.filter { it.optString("level") == "goal" }.associate { it.optString("id") to it.optString("title") }
-
         val subs = plans.filter {
             it.optString("level") == "sub" && it.optString("dueType") == "month" &&
                 (it.optString("due") == month || (it.optString("due") < month && !it.optBoolean("done")))
         }.sortedWith(compareBy({ it.optBoolean("done") }, { it.optString("due") }))
-        rows += Row.Head("${today.monthValue}월 목표")
-        if (subs.isEmpty()) rows += Row.Empty("이번 달 기한인 세부 목표가 없어요")
+        val done = subs.count { it.optBoolean("done") }
+        rows += Row.Head("${today.monthValue}월 목표 $done/${subs.size}")
+        if (subs.isEmpty()) rows += Row.Empty(if (plans.isEmpty()) "앱의 계획 탭에서 목표를 추가해 보세요" else "이번 달 기한인 세부 목표가 없어요")
         for (s in subs) {
             val due = s.optString("due")
             val late = !s.optBoolean("done") && due < month
@@ -109,39 +110,7 @@ object WidgetData {
             val sub = listOf(if (late) "${due.replace("-", ".")}까지 · 지남" else "", parent).filter { it.isNotEmpty() }.joinToString(" · ")
             rows += Row.Goal(s.optString("id"), s.optString("title"), sub, s.optBoolean("done"), late)
         }
-
-        val goals = plans.filter {
-            it.optString("level") == "goal" && it.optInt("startYear") <= year && year <= it.optInt("endYear")
-        }.sortedWith(compareBy({ it.optBoolean("done") }, { it.optLong("createdAt") }))
-        rows += Row.Head("${year}년 목표")
-        if (goals.isEmpty()) rows += Row.Empty(if (plans.isEmpty()) "앱의 계획 탭에서 목표를 추가해 보세요" else "올해 목표가 없어요")
-        for (g in goals) {
-            val a = g.optInt("startYear"); val b = g.optInt("endYear")
-            val yearsSub = plans.count { it.optString("level") == "sub" && it.optString("goalId") == g.optString("id") }
-            val doneSub = plans.count { it.optString("level") == "sub" && it.optString("goalId") == g.optString("id") && it.optBoolean("done") }
-            val sub = listOf(if (a == b) "${a}년" else "$a–$b", if (yearsSub > 0) "세부 $doneSub/$yearsSub" else "").filter { it.isNotEmpty() }.joinToString(" · ")
-            rows += Row.Goal(g.optString("id"), g.optString("title"), sub, g.optBoolean("done"), false)
-        }
         return rows
-    }
-
-    /** Older 장기/중기/단기 plans, read the way the page reads them. */
-    private fun norm(p: JSONObject): JSONObject {
-        val level = p.optString("level")
-        if (level == "goal" || level == "sub" || level == "bucket") return p
-        val c = JSONObject(p.toString())
-        val per = p.optString("period")
-        val now = LocalDate.now().year
-        when (level) {
-            "long" -> { val y = per.drop(1).toIntOrNull() ?: now; c.put("level", "goal").put("startYear", y).put("endYear", y + 4) }
-            "mid" -> { val y = per.drop(1).toIntOrNull() ?: now; c.put("level", "goal").put("startYear", y).put("endYear", y) }
-            "short" -> {
-                val m = Regex("^Q(\\d+)-(\\d)$").find(per)
-                val y = m?.groupValues?.get(1)?.toIntOrNull() ?: now
-                c.put("level", "goal").put("startYear", y).put("endYear", y)
-            }
-        }
-        return c
     }
 
     fun toggle(ctx: Context, id: String) {

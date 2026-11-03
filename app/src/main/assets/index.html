@@ -247,7 +247,11 @@ textarea.in { min-height: 70px; resize: vertical; }
           <option value="none">반복 안 함</option>
           <option value="weekly">매주</option>
           <option value="monthly">매월</option>
+          <option value="monthnth">매월 첫째 주 월요일</option>
+          <option value="monthlast">매월 마지막 주 월요일</option>
           <option value="yearly">매년 (생일·기념일)</option>
+          <option value="yearnth">매년 1월 첫째 주 월요일</option>
+          <option value="yearlast">매년 1월 마지막 주 월요일</option>
         </select>
       </label>
       <p class="hint" id="repeatHint" hidden>반복 일정은 수정하거나 삭제하면 전체 반복에 적용돼요.</p>
@@ -318,6 +322,16 @@ textarea.in { min-height: 70px; resize: vertical; }
   };
   const DOW = ["일","월","화","수","목","금","토"];
   const REPEAT_LABEL = { weekly: "매주", monthly: "매월", yearly: "매년" };
+  // N째 주 O요일 repeats: the week number counts that weekday's occurrences in the month (1–7일 = 첫째).
+  const NTH = ["첫째", "둘째", "셋째", "넷째", "다섯째"], DAYK = ["일", "월", "화", "수", "목", "금", "토"];
+  const nthOf = (d) => Math.ceil(d.getDate() / 7);
+  const isLastWeek = (d) => d.getDate() + 7 > new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+  function repeatLabel(ev) {
+    if (!ev.repeat || ev.repeat === "none") return "";
+    if (REPEAT_LABEL[ev.repeat]) return REPEAT_LABEL[ev.repeat];
+    const b = parse(ev.date), w = `${ev.repeat.endsWith("last") ? "마지막" : NTH[nthOf(b) - 1]} 주 ${DAYK[b.getDay()]}요일`;
+    return ev.repeat.startsWith("year") ? `매년 ${b.getMonth() + 1}월 ${w}` : `매월 ${w}`;
+  }
   const LS_EVENTS = "cal.events", LS_SOURCE = "cal.source", LS_VIEW = "cal.view";
 
   const $ = (id) => document.getElementById(id);
@@ -398,6 +412,10 @@ textarea.in { min-height: 70px; resize: vertical; }
       case "weekly": return d.getDay() === b.getDay();
       case "monthly": return d.getDate() === b.getDate();
       case "yearly": return d.getDate() === b.getDate() && d.getMonth() === b.getMonth();
+      case "monthnth": return d.getDay() === b.getDay() && nthOf(d) === nthOf(b);
+      case "monthlast": return d.getDay() === b.getDay() && isLastWeek(d);
+      case "yearnth": return d.getMonth() === b.getMonth() && d.getDay() === b.getDay() && nthOf(d) === nthOf(b);
+      case "yearlast": return d.getMonth() === b.getMonth() && d.getDay() === b.getDay() && isLastWeek(d);
       default: return false;
     }
   }
@@ -419,7 +437,7 @@ textarea.in { min-height: 70px; resize: vertical; }
     t.style.whiteSpace = "pre-line";
     const w = el("span", "what");
     w.append(el("b", null, ev.title));
-    const meta = [ev.google ? "구글 캘린더" : "", REPEAT_LABEL[ev.repeat], ev.memo].filter(Boolean).join(" · ");
+    const meta = [ev.google ? "구글 캘린더" : "", repeatLabel(ev), ev.memo].filter(Boolean).join(" · ");
     if (meta) w.append(el("span", null, meta));
     b.append(s, t, w);
     b.addEventListener("click", () => openSheet(ev));
@@ -633,6 +651,21 @@ textarea.in { min-height: 70px; resize: vertical; }
   function syncRepeat() { $("repeatHint").hidden = !(editing && $("f-repeat").value !== "none"); }
   $("f-allday").addEventListener("change", syncTime);
   $("f-repeat").addEventListener("change", syncRepeat);
+  // Repeat choices name the picked date's own week and weekday; 마지막 주 shows only when the date is in the last 7 days.
+  function syncRepeatOptions() {
+    const v = $("f-date").value; if (!v) return;
+    const b = parse(v), sel = $("f-repeat");
+    for (const o of sel.options) {
+      if (!["monthnth", "monthlast", "yearnth", "yearlast"].includes(o.value)) continue;
+      o.textContent = repeatLabel({ date: v, repeat: o.value });
+      o.hidden = o.disabled = o.value.endsWith("last") && !isLastWeek(b);
+      if (o.value.endsWith("nth")) o.hidden = o.disabled = nthOf(b) === 5;
+    }
+    if (sel.selectedOptions[0] && sel.selectedOptions[0].disabled) {
+      sel.value = sel.value.endsWith("last") ? sel.value.replace(/last$/, "nth") : sel.value.replace(/nth$/, "last");
+    }
+  }
+  $("f-date").addEventListener("change", syncRepeatOptions);
 
   function openSheet(ev, ds) {
     editing = ev || null;
@@ -644,6 +677,7 @@ textarea.in { min-height: 70px; resize: vertical; }
     if (!ev) { const h = Math.min(new Date().getHours() + 1, 22); st = `${pad(h)}:00`; en = `${pad(h + 1)}:00`; }
     $("f-start").value = ev && ev.start ? ev.start : st;
     $("f-end").value = ev && ev.end ? ev.end : en;
+    syncRepeatOptions();
     $("f-repeat").value = ev ? ev.repeat || "none" : "none";
     $("f-memo").value = ev ? ev.memo || "" : "";
     const c = $("f-" + ((ev && ev.color) || "c1")); if (c) c.checked = true;
@@ -908,7 +942,10 @@ textarea.in { min-height: 70px; resize: vertical; }
       input.startTime = `${ev.date}T${ev.start}:00`; input.endTime = `${ev.date}T${end}:00`;
     }
     if (ev.memo) input.description = ev.memo;
-    const rr = { weekly: "RRULE:FREQ=WEEKLY", monthly: "RRULE:FREQ=MONTHLY", yearly: "RRULE:FREQ=YEARLY" }[ev.repeat];
+    const bd = parse(ev.date), wd = ["SU", "MO", "TU", "WE", "TH", "FR", "SA"][bd.getDay()], nth = ev.repeat && ev.repeat.endsWith("last") ? -1 : nthOf(bd);
+    const rr = { weekly: "RRULE:FREQ=WEEKLY", monthly: "RRULE:FREQ=MONTHLY", yearly: "RRULE:FREQ=YEARLY",
+      monthnth: `RRULE:FREQ=MONTHLY;BYDAY=${nth}${wd}`, monthlast: `RRULE:FREQ=MONTHLY;BYDAY=-1${wd}`,
+      yearnth: `RRULE:FREQ=YEARLY;BYMONTH=${bd.getMonth() + 1};BYDAY=${nth}${wd}`, yearlast: `RRULE:FREQ=YEARLY;BYMONTH=${bd.getMonth() + 1};BYDAY=-1${wd}` }[ev.repeat];
     if (rr) input.recurrenceData = [rr];
     try { await mcp.callTool(GS, "create_event", input); toast("구글 캘린더에 추가했어요"); }
     catch (err) { toast(gMessage(err, "구글에 저장됐는지 확인하지 못했어요. 새로고침해서 확인해 주세요.")); }

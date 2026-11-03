@@ -1,5 +1,6 @@
 package com.dayplan.calendar
 
+import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.Intent
 import android.os.Binder
@@ -7,10 +8,11 @@ import android.widget.RemoteViews
 import android.widget.RemoteViewsService
 
 class WidgetService : RemoteViewsService() {
-    override fun onGetViewFactory(intent: Intent): RemoteViewsFactory = Factory(applicationContext)
+    override fun onGetViewFactory(intent: Intent): RemoteViewsFactory =
+        Factory(applicationContext, intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1))
 }
 
-private class Factory(private val ctx: Context) : RemoteViewsService.RemoteViewsFactory {
+private class Factory(private val ctx: Context, private val widgetId: Int) : RemoteViewsService.RemoteViewsFactory {
     private var rows: List<Row> = emptyList()
 
     override fun onCreate() {}
@@ -18,7 +20,7 @@ private class Factory(private val ctx: Context) : RemoteViewsService.RemoteViews
 
     override fun onDataSetChanged() {
         val token = Binder.clearCallingIdentity()
-        rows = try { WidgetData.build(ctx) } catch (e: Exception) { listOf(Row.Empty("불러오지 못했어요")) }
+        rows = try { WidgetData.listRows(ctx, CalendarWidget.selected(ctx, widgetId)) } catch (e: Exception) { listOf(Row.Empty("불러오지 못했어요")) }
         finally { Binder.restoreCallingIdentity(token) }
     }
 
@@ -34,7 +36,6 @@ private class Factory(private val ctx: Context) : RemoteViewsService.RemoteViews
             is Row.Head -> RemoteViews(pkg, R.layout.row_head).apply { setTextViewText(R.id.text, r.text) }
             is Row.Empty -> RemoteViews(pkg, R.layout.row_empty).apply { setTextViewText(R.id.text, r.text) }
             is Row.Event -> RemoteViews(pkg, R.layout.row_event).apply {
-                setTextViewText(R.id.day, r.day)
                 setTextViewText(R.id.time, r.time)
                 setTextViewText(R.id.title, r.title)
                 setTextColor(R.id.dot, r.color)

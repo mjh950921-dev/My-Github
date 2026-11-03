@@ -4,17 +4,8 @@
     android:layout_height="wrap_content"
     android:orientation="horizontal"
     android:gravity="center_vertical"
-    android:paddingTop="4dp"
-    android:paddingBottom="4dp">
-
-    <TextView
-        android:id="@+id/day"
-        android:layout_width="56dp"
-        android:layout_height="wrap_content"
-        android:textColor="@color/ink"
-        android:textSize="12sp"
-        android:textStyle="bold"
-        android:singleLine="true" />
+    android:paddingTop="3dp"
+    android:paddingBottom="3dp">
 
     <TextView
         android:id="@+id/dot"
@@ -22,7 +13,7 @@
         android:layout_height="wrap_content"
         android:layout_marginEnd="6dp"
         android:text="●"
-        android:textSize="9sp" />
+        android:textSize="8sp" />
 
     <TextView
         android:id="@+id/time"
@@ -39,7 +30,7 @@
         android:layout_height="wrap_content"
         android:layout_weight="1"
         android:textColor="@color/ink"
-        android:textSize="14sp"
+        android:textSize="13.5sp"
         android:singleLine="true"
         android:ellipsize="end" />
 </LinearLayout>

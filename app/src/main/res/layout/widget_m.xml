@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@drawable/widget_bg"
+    android:paddingStart="14dp"
+    android:paddingEnd="8dp"
+    android:paddingTop="8dp"
+    android:paddingBottom="8dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:id="@+id/title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:textColor="@color/ink"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:singleLine="true" />
+
+        <ImageView android:id="@+id/prev" android:layout_width="34dp" android:layout_height="34dp"
+            android:padding="8dp" android:src="@drawable/ic_prev" android:contentDescription="이전 달" />
+        <ImageView android:id="@+id/next" android:layout_width="34dp" android:layout_height="34dp"
+            android:padding="8dp" android:src="@drawable/ic_next" android:contentDescription="다음 달" />
+        <ImageView android:id="@+id/add" android:layout_width="34dp" android:layout_height="34dp"
+            android:padding="7dp" android:src="@drawable/ic_add" android:contentDescription="앱 열기" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:paddingEnd="6dp"
+        android:paddingBottom="2dp">
+            <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                android:gravity="center" android:text="일" android:textSize="10sp" android:textColor="@color/sun" />
+            <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                android:gravity="center" android:text="월" android:textSize="10sp" android:textColor="@color/muted" />
+            <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                android:gravity="center" android:text="화" android:textSize="10sp" android:textColor="@color/muted" />
+            <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                android:gravity="center" android:text="수" android:textSize="10sp" android:textColor="@color/muted" />
+            <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                android:gravity="center" android:text="목" android:textSize="10sp" android:textColor="@color/muted" />
+            <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                android:gravity="center" android:text="금" android:textSize="10sp" android:textColor="@color/muted" />
+            <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                android:gravity="center" android:text="토" android:textSize="10sp" android:textColor="@color/sat" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/weeks"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="2.4"
+        android:orientation="vertical"
+        android:paddingEnd="6dp" />
+
+    <TextView android:layout_width="match_parent" android:layout_height="1dp" android:background="@color/line" android:layout_marginEnd="6dp" />
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <ListView
+            android:id="@+id/list"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:divider="@null"
+            android:dividerHeight="0dp"
+            android:paddingEnd="6dp"
+            android:scrollbars="none" />
+
+        <TextView
+            android:id="@+id/empty"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:text="불러오는 중…"
+            android:textColor="@color/muted"
+            android:textSize="12sp" />
+    </FrameLayout>
+</LinearLayout>

@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/cell"
+    android:layout_width="0dp"
+    android:layout_height="match_parent"
+    android:layout_weight="1"
+    android:orientation="vertical"
+    android:gravity="center_horizontal"
+    android:paddingStart="1dp"
+    android:paddingEnd="1dp">
+
+    <TextView
+        android:id="@+id/num"
+        android:layout_width="22dp"
+        android:layout_height="22dp"
+        android:gravity="center"
+        android:textSize="11.5sp"
+        android:textColor="@color/ink" />
+
+    <TextView
+        android:id="@+id/dots"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textSize="6sp"
+        android:letterSpacing="0.2"
+        android:includeFontPadding="false" />
+
+    <TextView android:id="@+id/chip1" style="@style/Chip" />
+    <TextView android:id="@+id/chip2" style="@style/Chip" />
+
+    <TextView
+        android:id="@+id/more"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textColor="@color/muted"
+        android:textSize="8.5sp"
+        android:includeFontPadding="false"
+        android:visibility="gone" />
+</LinearLayout>

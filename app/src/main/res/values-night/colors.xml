@@ -5,4 +5,7 @@
     <color name="muted">#95a39d</color>
     <color name="accent">#3cc095</color>
     <color name="late">#ff7a7a</color>
+    <color name="line">#2a3531</color>
+    <color name="sun">#ff7a7a</color>
+    <color name="sat">#82a8ff</color>
 </resources>

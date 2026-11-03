@@ -6,4 +6,7 @@
     <color name="accent">#0d7558</color>
     <color name="late">#cf3434</color>
     <color name="brand">#0d7558</color>
+    <color name="line">#e3e9e5</color>
+    <color name="sun">#cf3434</color>
+    <color name="sat">#2c60c4</color>
 </resources>
