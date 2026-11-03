@@ -33,9 +33,16 @@ private class Factory(private val ctx: Context, private val widgetId: Int) : Rem
     override fun getViewAt(position: Int): RemoteViews {
         val pkg = ctx.packageName
         return when (val r = rows.getOrNull(position) ?: Row.Empty("")) {
-            is Row.Head -> RemoteViews(pkg, R.layout.row_head).apply { setTextViewText(R.id.text, r.text) }
-            is Row.Empty -> RemoteViews(pkg, R.layout.row_empty).apply { setTextViewText(R.id.text, r.text) }
+            is Row.Head -> RemoteViews(pkg, R.layout.row_head).apply {
+                setTextViewText(R.id.text, r.text)
+                setOnClickFillInIntent(R.id.text, Intent().setAction(CalendarWidget.ACTION_OPEN).putExtra(CalendarWidget.EXTRA_DATE, r.date))
+            }
+            is Row.Empty -> RemoteViews(pkg, R.layout.row_empty).apply {
+                setTextViewText(R.id.text, r.text)
+                setOnClickFillInIntent(R.id.text, Intent().setAction(CalendarWidget.ACTION_OPEN))
+            }
             is Row.Event -> RemoteViews(pkg, R.layout.row_event).apply {
+                setOnClickFillInIntent(R.id.erow, Intent().setAction(CalendarWidget.ACTION_OPEN).putExtra(CalendarWidget.EXTRA_DATE, r.date))
                 setTextViewText(R.id.time, r.time)
                 setTextViewText(R.id.title, r.title)
                 setTextColor(R.id.dot, r.color)

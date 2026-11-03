@@ -51,6 +51,7 @@ class CalendarWidget : AppWidgetProvider() {
         const val ACTION_REFRESH = "com.dayplan.calendar.REFRESH"
         const val ACTION_SELECT = "com.dayplan.calendar.SELECT"
         const val ACTION_MONTH = "com.dayplan.calendar.MONTH"
+        const val ACTION_OPEN = "com.dayplan.calendar.OPEN"
         const val EXTRA_ID = "id"
         const val EXTRA_DATE = "date"
         const val EXTRA_DELTA = "delta"
@@ -93,8 +94,8 @@ class CalendarWidget : AppWidgetProvider() {
                 ctx, 0, Intent(ctx, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
-            val template = PendingIntent.getBroadcast(
-                ctx, 2, Intent(ctx, CalendarWidget::class.java),
+            val template = PendingIntent.getActivity(
+                ctx, 2, Intent(ctx, WidgetActionActivity::class.java),
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
             )
             for (id in ids) {
@@ -188,7 +189,11 @@ class CalendarWidget : AppWidgetProvider() {
                 c.setTextViewText(R.id.dots, if (dots.isEmpty()) " " else dots)
             }
             val code = id * 1000 + (d.dayOfYear % 900)
-            c.setOnClickPendingIntent(R.id.cell, broadcast(ctx, code, ACTION_SELECT, id) { it.putExtra(EXTRA_DATE, d.toString()) })
+            c.setOnClickPendingIntent(R.id.cell, PendingIntent.getActivity(
+                ctx, code,
+                Intent(ctx, WidgetActionActivity::class.java).setAction(ACTION_OPEN).putExtra(EXTRA_DATE, d.toString()),
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            ))
             return c
         }
     }

@@ -11,9 +11,9 @@ import java.time.format.TextStyle
 import java.util.Locale
 
 sealed class Row {
-    data class Head(val text: String) : Row()
+    data class Head(val text: String, val date: String? = null) : Row()
     data class Empty(val text: String) : Row()
-    data class Event(val time: String, val title: String, val color: Int) : Row()
+    data class Event(val time: String, val title: String, val color: Int, val date: String) : Row()
     data class Goal(val id: String, val title: String, val sub: String, val done: Boolean, val late: Boolean) : Row()
 }
 
@@ -88,10 +88,10 @@ object WidgetData {
         val rows = ArrayList<Row>()
         val today = LocalDate.now()
         val dow = sel.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.KOREAN)
-        rows += Row.Head("${if (sel == today) "오늘 · " else ""}${sel.monthValue}월 ${sel.dayOfMonth}일 $dow")
+        rows += Row.Head("${if (sel == today) "오늘 · " else ""}${sel.monthValue}월 ${sel.dayOfMonth}일 $dow", sel.toString())
         val list = eventsByDay(ctx, sel, 1)[sel].orEmpty()
         if (list.isEmpty()) rows += Row.Empty(if (CalendarRepo.hasPermission(ctx)) "일정이 없어요" else "앱을 열어 캘린더 접근을 허용해 주세요")
-        list.forEach { rows += Row.Event(if (it.allDay) "종일" else it.start, it.title, it.color) }
+        list.forEach { rows += Row.Event(if (it.allDay) "종일" else it.start, it.title, it.color, sel.toString()) }
 
         val plans = arr(ctx, "cal.plans")
         val month = YearMonth.from(today).toString()

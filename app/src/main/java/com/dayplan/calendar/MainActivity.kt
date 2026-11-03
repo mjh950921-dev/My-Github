@@ -31,6 +31,8 @@ class MainActivity : Activity() {
         web.settings.javaScriptEnabled = true
         web.settings.domStorageEnabled = true
         web.webViewClient = object : WebViewClient() {
+            override fun onPageFinished(view: WebView, url: String) { openPendingDate() }
+
             override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? =
                 loader.shouldInterceptRequest(request.url)
 
@@ -41,12 +43,29 @@ class MainActivity : Activity() {
             }
         }
         web.addJavascriptInterface(Bridge(this), "Android")
+        takeDate(intent)
         seenOutside = Store.outsideVersion(this)
         web.loadUrl("https://$HOST/assets/index.html")
 
         if (!CalendarRepo.hasPermission(this)) {
             requestPermissions(arrayOf(Manifest.permission.READ_CALENDAR, Manifest.permission.WRITE_CALENDAR), REQ_CAL)
         }
+    }
+
+    private var pendingDate: String? = null
+
+    private fun takeDate(i: Intent?) { pendingDate = i?.getStringExtra(CalendarWidget.EXTRA_DATE) }
+
+    private fun openPendingDate() {
+        val d = pendingDate ?: return
+        pendingDate = null
+        if (Regex("^\\d{4}-\\d{2}-\\d{2}$").matches(d)) web.evaluateJavascript("window.__openDate && window.__openDate('$d')", null)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        takeDate(intent)
+        openPendingDate()
     }
 
     override fun onResume() {
