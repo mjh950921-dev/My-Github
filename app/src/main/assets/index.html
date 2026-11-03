@@ -682,7 +682,7 @@ textarea.in { min-height: 70px; resize: vertical; }
     $("f-memo").value = ev ? ev.memo || "" : "";
     const c = $("f-" + ((ev && ev.color) || "c1")); if (c) c.checked = true;
     delBtn.hidden = !ev; delBtn.classList.remove("armed"); delBtn.textContent = "삭제";
-    const ro = !!(ev && ev.google);
+    const ro = !!(ev && ev.google) && !window.__nativeCal;
     $("form").querySelectorAll("input, select, textarea").forEach((x) => (x.disabled = ro));
     $("b-save").hidden = ro; $("roHint").hidden = !ro;
     if (ro) $("s-title").textContent = "구글 캘린더 일정";
@@ -826,6 +826,16 @@ textarea.in { min-height: 70px; resize: vertical; }
       memo: $("f-memo").value.trim(), updatedAt: Date.now()
     };
     const wasEdit = !!editing;
+    if (wasEdit && editing.google && window.__nativeCal) {
+      const gid = editing.gid; closeSheet();
+      selected = date; const ud = parse(date); cursor = new Date(ud.getFullYear(), ud.getMonth(), 1); render();
+      try {
+        const r = await mcp.callTool(GS, "update_event", { eventId: gid, ...gInput(ev) });
+        toast(r && r.payload && r.payload.recurring ? "반복 일정은 제목과 메모만 바꿨어요" : "수정했어요");
+      } catch (err) { toast("수정하지 못했어요. 잠시 후 다시 시도해 주세요."); }
+      gRefresh();
+      return;
+    }
     if (!wasEdit && gState === "ok" && !$("gRow").hidden && $("f-google").checked) {
       lsSet(LS_GDEFAULT, "1");
       closeSheet();
@@ -933,7 +943,7 @@ textarea.in { min-height: 70px; resize: vertical; }
     } catch (err) { if (seq !== gSeq) return; gRange = null; gFail(err); }
   }
   function gRefresh() { if (mcp) { mcp.invalidate(GS).catch(() => {}); gFetch(true); } }
-  async function gCreate(ev) {
+  function gInput(ev) {
     const input = { summary: ev.title, allDay: ev.allDay, useDefaultReminders: true };
     if (ev.allDay) { input.startTime = ev.date + "T00:00:00"; input.endTime = ymd(addDays(parse(ev.date), 1)) + "T00:00:00"; }
     else {
@@ -947,6 +957,10 @@ textarea.in { min-height: 70px; resize: vertical; }
       monthnth: `RRULE:FREQ=MONTHLY;BYDAY=${nth}${wd}`, monthlast: `RRULE:FREQ=MONTHLY;BYDAY=-1${wd}`,
       yearnth: `RRULE:FREQ=YEARLY;BYMONTH=${bd.getMonth() + 1};BYDAY=${nth}${wd}`, yearlast: `RRULE:FREQ=YEARLY;BYMONTH=${bd.getMonth() + 1};BYDAY=-1${wd}` }[ev.repeat];
     if (rr) input.recurrenceData = [rr];
+    return input;
+  }
+  async function gCreate(ev) {
+    const input = gInput(ev);
     try { await mcp.callTool(GS, "create_event", input); toast("구글 캘린더에 추가했어요"); }
     catch (err) { toast(gMessage(err, "구글에 저장됐는지 확인하지 못했어요. 새로고침해서 확인해 주세요.")); }
     gRefresh();

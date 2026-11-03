@@ -26,6 +26,7 @@
             if (!A.calPermission()) { A.requestCal(); throw fail("approval_required"); }
             if (tool === "list_events") resolve({ payload: parse(A.listEvents(args.startTime, args.endTime)) });
             else if (tool === "create_event") resolve({ payload: parse(A.createEvent(JSON.stringify(args))) });
+            else if (tool === "update_event") resolve({ payload: parse(A.updateEvent(JSON.stringify(args))) });
             else if (tool === "delete_event") resolve({ payload: parse(A.deleteEvent(String(args.eventId))) });
             else throw fail("not_in_manifest");
           } catch (e) { reject(e); }
@@ -33,6 +34,12 @@
       });
     }
   };
+  // Inside the app, "Google Calendar" means every calendar on the phone (Google and Samsung), and its events are editable.
+  window.__nativeCal = true;
+  document.addEventListener("DOMContentLoaded", function () {
+    var row = document.querySelector("#gRow span");
+    if (row) row.innerHTML = '폰 캘린더에 저장<br><small style="color:var(--muted);font-size:12px">구글·삼성 캘린더에 함께 보이고 알림이 울려요</small>';
+  });
   var permissions = { state: function () { return Promise.resolve(A.calPermission() ? "granted" : "prompt"); } };
   window.claude = {
     use: function (name) { return Promise.resolve(name === "mcp" ? mcp : name === "permissions" ? permissions : null); }

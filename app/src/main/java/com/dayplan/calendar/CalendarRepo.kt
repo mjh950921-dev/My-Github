@@ -139,6 +139,42 @@ object CalendarRepo {
         }
     }
 
+    /** Edits a phone event. Repeating events keep their dates; only the title and memo change. Returns whether it repeats. */
+    fun update(ctx: Context, json: String): Boolean {
+        val o = JSONObject(json)
+        val eventId = o.getString("eventId").substringBefore("_").toLong()
+        val uri = ContentUris.withAppendedId(Events.CONTENT_URI, eventId)
+        var rrule: String? = null; var location = ""
+        ctx.contentResolver.query(uri, arrayOf(Events.RRULE, Events.EVENT_LOCATION), null, null, null)?.use { c ->
+            if (c.moveToFirst()) { rrule = c.getString(0); location = c.getString(1) ?: "" }
+        }
+        val v = ContentValues().apply { put(Events.TITLE, o.optString("summary")) }
+        // The page shows a phone event's place as its memo, so only write the memo back when it was changed.
+        val memo = o.optString("description", "")
+        if (memo != location) v.put(Events.DESCRIPTION, memo)
+        val repeating = !rrule.isNullOrEmpty()
+        if (!repeating) {
+            val allDay = o.optBoolean("allDay")
+            val tz = if (allDay) UTC else TimeZone.getDefault()
+            val f = fmt(tz)
+            val start = f.parse(o.getString("startTime"))!!.time
+            val end = f.parse(o.getString("endTime"))!!.time
+            v.put(Events.EVENT_TIMEZONE, tz.id)
+            v.put(Events.ALL_DAY, if (allDay) 1 else 0)
+            v.put(Events.DTSTART, start)
+            val rule = o.optJSONArray("recurrenceData")?.optString(0)?.removePrefix("RRULE:")
+            if (!rule.isNullOrEmpty()) {
+                v.put(Events.RRULE, rule)
+                v.put(Events.DURATION, if (allDay) "P1D" else "P${maxOf(60L, (end - start) / 1000)}S")
+                v.putNull(Events.DTEND)
+            } else {
+                v.put(Events.DTEND, end)
+            }
+        }
+        ctx.contentResolver.update(uri, v, null, null)
+        return repeating
+    }
+
     fun delete(ctx: Context, id: String) {
         val eventId = id.substringBefore("_").toLong()
         ctx.contentResolver.delete(ContentUris.withAppendedId(Events.CONTENT_URI, eventId), null, null)

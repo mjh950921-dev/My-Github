@@ -34,6 +34,11 @@ class Bridge(private val activity: MainActivity) {
         CalendarRepo.create(ctx, json); CalendarWidget.refresh(ctx); "{\"ok\":true}"
     }
 
+    @JavascriptInterface fun updateEvent(json: String): String = safe {
+        val repeating = CalendarRepo.update(ctx, json); CalendarWidget.refresh(ctx)
+        JSONObject().put("ok", true).put("recurring", repeating).toString()
+    }
+
     @JavascriptInterface fun deleteEvent(id: String): String = safe {
         CalendarRepo.delete(ctx, id); CalendarWidget.refresh(ctx); "{\"ok\":true}"
     }
