@@ -36,9 +36,24 @@
   };
   // Inside the app, "Google Calendar" means every calendar on the phone (Google and Samsung), and its events are editable.
   window.__nativeCal = true;
+  // New events: choose where they are saved. The page's own #f-google checkbox stays as the source of truth.
   document.addEventListener("DOMContentLoaded", function () {
-    var row = document.querySelector("#gRow span");
-    if (row) row.innerHTML = '폰 캘린더에 저장<br><small style="color:var(--muted);font-size:12px">구글·삼성 캘린더에 함께 보이고 알림이 울려요</small>';
+    var row = document.getElementById("gRow"), box = document.getElementById("f-google");
+    if (!row || !box) return;
+    row.innerHTML = '<span>저장 위치<br><small style="color:var(--muted);font-size:12px" id="g-where-hint"></small></span>' +
+      '<div class="seg" role="group" aria-label="저장 위치"><button type="button" id="g-app">앱에만</button><button type="button" id="g-cal">구글 캘린더</button></div>';
+    row.appendChild(box); box.hidden = true;
+    function sync() {
+      var on = box.checked;
+      document.getElementById("g-app").setAttribute("aria-pressed", String(!on));
+      document.getElementById("g-cal").setAttribute("aria-pressed", String(on));
+      document.getElementById("g-where-hint").textContent = on ? "삼성 캘린더에도 보이고 알림이 울려요" : "이 앱과 위젯에만 보여요";
+    }
+    document.getElementById("g-app").addEventListener("click", function () { box.checked = false; sync(); });
+    document.getElementById("g-cal").addEventListener("click", function () { box.checked = true; sync(); });
+    var scrim = document.getElementById("scrim");
+    new MutationObserver(sync).observe(scrim || row, { attributes: true, attributeFilter: ["hidden"] });
+    sync();
   });
   var permissions = { state: function () { return Promise.resolve(A.calPermission() ? "granted" : "prompt"); } };
   window.claude = {
