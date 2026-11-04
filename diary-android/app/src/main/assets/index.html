@@ -1,0 +1,379 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>내 일기</title>
+<style>
+:root {
+  --bg: #f7f4ef; --surface: #ffffff; --ink: #2a2420; --muted: #7a6f66; --line: #e8e1d8;
+  --accent: #b5643c; --accent-ink: #ffffff; --soft: #f1e7dd; --danger: #c43c3c;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #16130f; --surface: #211c17; --ink: #efe8e0; --muted: #a89c90; --line: #352d26;
+    --accent: #e08b5c; --accent-ink: #1a120c; --soft: #2d241d; --danger: #ff7a7a; }
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; height: 100%; }
+body { background: var(--bg); color: var(--ink); font: 16px/1.5 system-ui, -apple-system, "Noto Sans KR", sans-serif; }
+button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+input, textarea { font: inherit; color: var(--ink); }
+.hidden { display: none !important; }
+.screen { min-height: 100%; display: flex; flex-direction: column; }
+
+/* Lock */
+#lock { align-items: center; justify-content: center; padding: 24px 16px; gap: 8px; }
+#lock .logo { font-size: 44px; }
+#lock h1 { margin: 4px 0 0; font-size: 22px; }
+#lock .msg { color: var(--muted); min-height: 24px; text-align: center; }
+#lock .msg.err { color: var(--danger); }
+.dots { display: flex; gap: 16px; margin: 20px 0 28px; }
+.dots span { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--accent); }
+.dots span.on { background: var(--accent); }
+.dots.shake { animation: shake .35s; }
+@keyframes shake { 25% { transform: translateX(-8px) } 75% { transform: translateX(8px) } }
+.pad { display: grid; grid-template-columns: repeat(3, 76px); gap: 14px 22px; }
+.pad button { height: 76px; border-radius: 50%; background: var(--surface); font-size: 26px; border: 1px solid var(--line); }
+.pad button:active { background: var(--soft); }
+.pad button.txt { font-size: 15px; background: none; border: 0; color: var(--muted); }
+.lenpick { margin-top: 18px; color: var(--muted); font-size: 14px; display: flex; gap: 8px; align-items: center; }
+.lenpick button { padding: 4px 12px; border-radius: 99px; border: 1px solid var(--line); }
+.lenpick button.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+
+/* Main */
+header { position: sticky; top: 0; z-index: 2; background: var(--bg); padding: 14px 16px 8px; display: flex; align-items: center; gap: 8px; }
+header h1 { margin: 0; font-size: 22px; flex: 1; }
+.iconbtn { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; font-size: 20px; }
+.iconbtn:active { background: var(--soft); }
+.search { margin: 0 16px 8px; }
+.search input { width: 100%; padding: 10px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); }
+.stats { margin: 0 16px 6px; color: var(--muted); font-size: 14px; }
+#list { padding: 0 16px 110px; }
+.month { margin: 18px 4px 8px; font-weight: 700; color: var(--muted); font-size: 14px; }
+.card { display: flex; gap: 12px; width: 100%; text-align: left; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 12px 14px; margin-bottom: 10px; }
+.card .day { width: 42px; flex: none; text-align: center; }
+.card .day b { display: block; font-size: 22px; line-height: 1.1; }
+.card .day small { color: var(--muted); font-size: 12px; }
+.card .day small.sun { color: var(--danger); }
+.card .body { flex: 1; min-width: 0; }
+.card .title { font-weight: 600; display: flex; gap: 6px; align-items: center; }
+.card .title span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.card .prev { color: var(--muted); font-size: 14px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin-top: 2px; }
+.empty { text-align: center; color: var(--muted); margin-top: 80px; }
+.empty div { font-size: 48px; }
+.fab { position: fixed; right: 20px; bottom: calc(24px + env(safe-area-inset-bottom)); background: var(--accent); color: var(--accent-ink); border-radius: 99px; padding: 14px 22px; font-weight: 700; box-shadow: 0 6px 18px rgba(0,0,0,.18); }
+
+/* Editor */
+#editor header { border-bottom: 1px solid var(--line); }
+.save { background: var(--accent); color: var(--accent-ink); padding: 8px 18px; border-radius: 99px; font-weight: 700; }
+.edit { padding: 14px 16px 40px; display: flex; flex-direction: column; gap: 14px; flex: 1; }
+.edit .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.edit input[type=date] { padding: 8px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); }
+.moods { display: flex; gap: 6px; }
+.moods button { font-size: 26px; width: 46px; height: 46px; border-radius: 50%; opacity: .45; }
+.moods button.on { opacity: 1; background: var(--soft); }
+.edit .ttl { border: 0; border-bottom: 1px solid var(--line); background: none; font-size: 20px; font-weight: 600; padding: 6px 2px; outline: none; }
+.edit textarea { flex: 1; min-height: 50vh; border: 0; background: none; resize: none; outline: none; line-height: 1.75; padding: 2px; }
+.del { color: var(--danger); align-self: flex-start; padding: 6px 0; font-size: 15px; }
+
+/* Settings sheet */
+.sheet-bg { position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 5; display: flex; align-items: flex-end; }
+.sheet { background: var(--surface); width: 100%; border-radius: 20px 20px 0 0; padding: 18px 16px calc(18px + env(safe-area-inset-bottom)); }
+.sheet h2 { margin: 0 0 8px; font-size: 18px; }
+.sheet button.item { display: block; width: 100%; text-align: left; padding: 14px 4px; border-bottom: 1px solid var(--line); }
+.sheet p { color: var(--muted); font-size: 13px; margin: 12px 4px 0; }
+.toast { position: fixed; left: 50%; bottom: 100px; transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 10px 18px; border-radius: 99px; font-size: 14px; z-index: 9; }
+</style>
+</head>
+<body>
+
+<section id="lock" class="screen hidden">
+  <div class="logo">📔</div>
+  <h1 id="lockTitle">내 일기</h1>
+  <div class="msg" id="lockMsg"></div>
+  <div class="dots" id="dots"></div>
+  <div class="pad" id="pad"></div>
+  <div class="lenpick hidden" id="lenpick">비밀번호 길이
+    <button data-len="4" class="on">4자리</button><button data-len="6">6자리</button>
+  </div>
+</section>
+
+<section id="home" class="screen hidden">
+  <header>
+    <h1>내 일기</h1>
+    <button class="iconbtn" id="lockNow" aria-label="잠그기">🔒</button>
+    <button class="iconbtn" id="openSettings" aria-label="설정">⚙️</button>
+  </header>
+  <div class="search"><input id="q" type="search" placeholder="일기 검색"></div>
+  <div class="stats" id="stats"></div>
+  <div id="list"></div>
+  <button class="fab" id="newBtn">＋ 오늘 일기 쓰기</button>
+</section>
+
+<section id="editor" class="screen hidden">
+  <header>
+    <button class="iconbtn" id="back" aria-label="뒤로">←</button>
+    <h1 id="edHead">일기 쓰기</h1>
+    <button class="save" id="saveBtn">저장</button>
+  </header>
+  <div class="edit">
+    <div class="row">
+      <input type="date" id="edDate">
+      <div class="moods" id="moods"></div>
+    </div>
+    <input class="ttl" id="edTitle" placeholder="제목 (없어도 돼요)" maxlength="80">
+    <textarea id="edBody" placeholder="오늘 하루는 어땠나요?"></textarea>
+    <button class="del hidden" id="delBtn">이 일기 지우기</button>
+  </div>
+</section>
+
+<div class="sheet-bg hidden" id="settings">
+  <div class="sheet">
+    <h2>설정</h2>
+    <button class="item" id="changePin">🔑 비밀번호 바꾸기</button>
+    <button class="item" id="closeSettings">닫기</button>
+    <p>앱을 나가거나 화면이 꺼지면 자동으로 잠겨요. 비밀번호를 잊으면 일기를 다시 열 수 없으니 꼭 기억해 두세요.</p>
+  </div>
+</div>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const MOODS = ['😄', '🙂', '😐', '😢', '😠'];
+  const WD = ['일', '월', '화', '수', '목', '금', '토'];
+
+  // ---------- storage: the app's private file on the phone, localStorage in a browser ----------
+  const KEY = 'diary.v1';
+  function load() {
+    try {
+      const raw = window.Android ? Android.load() : localStorage.getItem(KEY);
+      const d = raw ? JSON.parse(raw) : null;
+      if (d && Array.isArray(d.entries)) return d;
+    } catch (e) {}
+    return { pin: null, entries: [] };
+  }
+  function persist() {
+    const raw = JSON.stringify(data);
+    try { window.Android ? Android.save(raw) : localStorage.setItem(KEY, raw); } catch (e) { toast('저장하지 못했어요'); }
+  }
+  let data = load();
+
+  // ---------- password ----------
+  const hex = (buf) => [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
+  async function hashPin(pin, salt) {
+    const enc = new TextEncoder().encode(salt + ':' + pin);
+    const key = await crypto.subtle.importKey('raw', enc, 'PBKDF2', false, ['deriveBits']);
+    const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: new TextEncoder().encode(salt), iterations: 100000 }, key, 256);
+    return hex(bits);
+  }
+  const newSalt = () => hex(crypto.getRandomValues(new Uint8Array(16)));
+
+  // lock modes: 'unlock' | 'setup' | 'confirm' | 'verifyOld' | 'changeNew' | 'changeConfirm'
+  let mode = 'unlock', typed = '', firstPin = '', pinLen = 4, busy = false;
+  let fails = Number(sessionStorage.getItem('fails') || 0), waitUntil = 0;
+
+  const TEXT = {
+    unlock: ['내 일기', '비밀번호를 입력하세요'],
+    setup: ['비밀번호 만들기', '일기를 지킬 비밀번호를 정해 주세요'],
+    confirm: ['한 번 더 입력', '확인을 위해 같은 비밀번호를 입력하세요'],
+    verifyOld: ['비밀번호 바꾸기', '지금 비밀번호를 입력하세요'],
+    changeNew: ['새 비밀번호', '새 비밀번호를 입력하세요'],
+    changeConfirm: ['한 번 더 입력', '새 비밀번호를 한 번 더 입력하세요'],
+  };
+
+  function setMsg(t, err) { $('lockMsg').textContent = t; $('lockMsg').classList.toggle('err', !!err); }
+  function drawDots() {
+    $('dots').innerHTML = Array.from({ length: pinLen }, (_, i) => `<span class="${i < typed.length ? 'on' : ''}"></span>`).join('');
+  }
+  function showLock(m) {
+    mode = m; typed = '';
+    if (m === 'unlock' || m === 'verifyOld') pinLen = data.pin.len;
+    $('lockTitle').textContent = TEXT[m][0];
+    setMsg(TEXT[m][1]);
+    $('lenpick').classList.toggle('hidden', !(m === 'setup' || m === 'changeNew'));
+    [...$('lenpick').querySelectorAll('button')].forEach((b) => b.classList.toggle('on', Number(b.dataset.len) === pinLen));
+    $('cancelKey').textContent = (m === 'unlock' || m === 'setup') ? '' : '취소';
+    drawDots();
+    show('lock');
+  }
+  function shake(msg) {
+    typed = ''; drawDots(); setMsg(msg, true);
+    $('dots').classList.remove('shake'); void $('dots').offsetWidth; $('dots').classList.add('shake');
+  }
+
+  async function complete() {
+    const pin = typed;
+    busy = true;
+    try {
+      if (mode === 'unlock' || mode === 'verifyOld') {
+        const ok = (await hashPin(pin, data.pin.salt)) === data.pin.hash;
+        if (ok) {
+          fails = 0; sessionStorage.setItem('fails', 0);
+          if (mode === 'unlock') { unlocked = true; renderList(); show('home'); }
+          else showLock('changeNew');
+        } else {
+          fails++; sessionStorage.setItem('fails', fails);
+          if (fails >= 5) { waitUntil = Date.now() + 30000; shake('5번 틀렸어요. 30초 뒤에 다시 해 주세요'); }
+          else shake(`비밀번호가 달라요 (${fails}/5)`);
+        }
+      } else if (mode === 'setup' || mode === 'changeNew') {
+        firstPin = pin; showLock(mode === 'setup' ? 'confirm' : 'changeConfirm');
+      } else if (mode === 'confirm' || mode === 'changeConfirm') {
+        if (pin !== firstPin) { firstPin = ''; const back = mode === 'confirm' ? 'setup' : 'changeNew'; showLock(back); shake('두 번 입력한 비밀번호가 달라요. 처음부터 다시 정해 주세요'); return; }
+        const salt = newSalt();
+        data.pin = { salt, hash: await hashPin(pin, salt), len: pin.length };
+        persist();
+        const wasSetup = mode === 'confirm';
+        firstPin = ''; unlocked = true; renderList(); show('home');
+        toast(wasSetup ? '비밀번호를 만들었어요' : '비밀번호를 바꿨어요');
+      }
+    } finally { busy = false; }
+  }
+
+  function key(k) {
+    if (busy) return;
+    if (Date.now() < waitUntil) { setMsg(`${Math.ceil((waitUntil - Date.now()) / 1000)}초 뒤에 다시 해 주세요`, true); return; }
+    if (k === 'del') { typed = typed.slice(0, -1); drawDots(); return; }
+    if (k === 'cancel') { if (mode !== 'unlock' && mode !== 'setup') { firstPin = ''; show('home'); } return; }
+    if (typed.length >= pinLen) return;
+    typed += k; drawDots();
+    if (typed.length === pinLen) setTimeout(complete, 120);
+  }
+
+  $('pad').innerHTML = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'cancel', '0', 'del']
+    .map((k) => k === 'cancel' ? `<button class="txt" id="cancelKey" data-k="cancel"></button>`
+      : k === 'del' ? `<button class="txt" data-k="del" aria-label="지우기">⌫</button>`
+      : `<button data-k="${k}">${k}</button>`).join('');
+  $('pad').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) key(b.dataset.k); });
+  $('lenpick').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-len]'); if (!b) return;
+    pinLen = Number(b.dataset.len); typed = ''; firstPin = '';
+    [...$('lenpick').querySelectorAll('button')].forEach((x) => x.classList.toggle('on', x === b));
+    drawDots();
+  });
+  document.addEventListener('keydown', (e) => {
+    if ($('lock').classList.contains('hidden')) return;
+    if (/^[0-9]$/.test(e.key)) key(e.key); else if (e.key === 'Backspace') key('del');
+  });
+
+  // ---------- screens ----------
+  let unlocked = false;
+  function show(id) {
+    ['lock', 'home', 'editor'].forEach((s) => $(s).classList.toggle('hidden', s !== id));
+    $('settings').classList.add('hidden');
+    window.scrollTo(0, 0);
+  }
+  // Called by the app when it goes to the background.
+  window.__lock = () => {
+    if (!data.pin) return;
+    if (!$('editor').classList.contains('hidden') && dirty()) saveEntry(true);
+    unlocked = false; firstPin = '';
+    showLock('unlock');
+  };
+  function toast(t) {
+    document.querySelectorAll('.toast').forEach((x) => x.remove());
+    const el = document.createElement('div'); el.className = 'toast'; el.textContent = t;
+    document.body.appendChild(el); setTimeout(() => el.remove(), 1800);
+  }
+
+  // ---------- list ----------
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const today = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); };
+  function renderList() {
+    const q = $('q').value.trim().toLowerCase();
+    const all = [...data.entries].sort((a, b) => b.date.localeCompare(a.date) || b.updated - a.updated);
+    const items = q ? all.filter((e) => (e.title + ' ' + e.body).toLowerCase().includes(q)) : all;
+    const month = today().slice(0, 7);
+    const thisMonth = data.entries.filter((e) => e.date.startsWith(month)).length;
+    $('stats').textContent = data.entries.length ? `모두 ${data.entries.length}편 · 이번 달 ${thisMonth}편` : '';
+    if (!items.length) {
+      $('list').innerHTML = q ? `<div class="empty"><div>🔍</div>"${esc(q)}"이(가) 들어간 일기가 없어요</div>`
+        : `<div class="empty"><div>✏️</div>아직 쓴 일기가 없어요.<br>오늘 하루를 적어 볼까요?</div>`;
+      return;
+    }
+    let html = '', cur = '';
+    for (const e of items) {
+      const m = e.date.slice(0, 7);
+      if (m !== cur) { cur = m; html += `<div class="month">${m.slice(0, 4)}년 ${Number(m.slice(5))}월</div>`; }
+      const d = new Date(e.date + 'T00:00:00'), wd = d.getDay();
+      html += `<button class="card" data-id="${e.id}">
+        <div class="day"><b>${d.getDate()}</b><small class="${wd === 0 ? 'sun' : ''}">${WD[wd]}</small></div>
+        <div class="body"><div class="title">${e.mood != null ? `<span>${MOODS[e.mood]}</span>` : ''}<span>${esc(e.title || '제목 없음')}</span></div>
+        <div class="prev">${esc(e.body.slice(0, 200)) || '&nbsp;'}</div></div></button>`;
+    }
+    $('list').innerHTML = html;
+  }
+  $('list').addEventListener('click', (e) => { const c = e.target.closest('.card'); if (c) openEditor(data.entries.find((x) => x.id === c.dataset.id)); });
+  $('q').addEventListener('input', renderList);
+
+  // ---------- editor ----------
+  let editing = null, mood = null, snapshot = '';
+  $('moods').innerHTML = MOODS.map((m, i) => `<button data-m="${i}" aria-label="기분 ${i + 1}">${m}</button>`).join('');
+  $('moods').addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    const i = Number(b.dataset.m); mood = mood === i ? null : i; drawMoods();
+  });
+  function drawMoods() { [...$('moods').children].forEach((b, i) => b.classList.toggle('on', i === mood)); }
+  const current = () => JSON.stringify([$('edDate').value, mood, $('edTitle').value, $('edBody').value]);
+  const dirty = () => current() !== snapshot;
+
+  function openEditor(entry) {
+    editing = entry || null;
+    $('edHead').textContent = entry ? '일기 고치기' : '일기 쓰기';
+    $('edDate').value = entry ? entry.date : today();
+    $('edDate').max = today();
+    mood = entry ? entry.mood : null; drawMoods();
+    $('edTitle').value = entry ? entry.title : '';
+    $('edBody').value = entry ? entry.body : '';
+    $('delBtn').classList.toggle('hidden', !entry);
+    snapshot = current();
+    show('editor');
+    if (!entry) setTimeout(() => $('edBody').focus(), 50);
+  }
+  function saveEntry(silent) {
+    const title = $('edTitle').value.trim(), body = $('edBody').value.replace(/\s+$/, '');
+    if (!title && !body.trim()) { if (!silent) toast('내용을 적어 주세요'); return false; }
+    const fields = { date: $('edDate').value || today(), mood, title, body, updated: Date.now() };
+    if (editing) Object.assign(editing, fields);
+    else { editing = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), ...fields }; data.entries.push(editing); }
+    persist();
+    snapshot = current();
+    if (!silent) { renderList(); show('home'); toast('저장했어요'); }
+    return true;
+  }
+  $('saveBtn').addEventListener('click', () => saveEntry(false));
+  $('back').addEventListener('click', goBack);
+  function goBack() {
+    if (dirty()) { if (!saveEntry(true)) { /* empty: just leave */ } else toast('저장했어요'); }
+    renderList(); show('home');
+  }
+  $('delBtn').addEventListener('click', () => {
+    if (!editing) return;
+    if (!$('delBtn').dataset.sure) { $('delBtn').dataset.sure = '1'; $('delBtn').textContent = '한 번 더 누르면 지워져요'; setTimeout(() => { delete $('delBtn').dataset.sure; $('delBtn').textContent = '이 일기 지우기'; }, 3000); return; }
+    data.entries = data.entries.filter((x) => x !== editing);
+    persist(); delete $('delBtn').dataset.sure; $('delBtn').textContent = '이 일기 지우기';
+    renderList(); show('home'); toast('지웠어요');
+  });
+
+  // Android back button: the app asks the page first.
+  window.__back = () => {
+    if (!$('settings').classList.contains('hidden')) { $('settings').classList.add('hidden'); return true; }
+    if (!$('editor').classList.contains('hidden')) { goBack(); return true; }
+    if (!$('lock').classList.contains('hidden') && unlocked) { firstPin = ''; show('home'); return true; }
+    return false;
+  };
+
+  // ---------- home buttons ----------
+  $('newBtn').addEventListener('click', () => openEditor(null));
+  $('lockNow').addEventListener('click', () => window.__lock());
+  $('openSettings').addEventListener('click', () => $('settings').classList.remove('hidden'));
+  $('closeSettings').addEventListener('click', () => $('settings').classList.add('hidden'));
+  $('settings').addEventListener('click', (e) => { if (e.target.id === 'settings') $('settings').classList.add('hidden'); });
+  $('changePin').addEventListener('click', () => showLock('verifyOld'));
+
+  // ---------- start ----------
+  showLock(data.pin ? 'unlock' : 'setup');
+})();
+</script>
+</body>
+</html>
