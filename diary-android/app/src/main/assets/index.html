@@ -76,6 +76,21 @@ header h1 { margin: 0; font-size: 22px; flex: 1; }
 .edit textarea { flex: 1; min-height: 50vh; border: 0; background: none; resize: none; outline: none; line-height: 1.75; padding: 2px; }
 .del { color: var(--danger); align-self: flex-start; padding: 6px 0; font-size: 15px; }
 
+/* Random reader */
+.randbtn { margin: 4px 16px 0; display: flex; align-items: center; gap: 10px; width: calc(100% - 32px); text-align: left; padding: 12px 14px; border-radius: 16px; background: var(--soft); border: 1px dashed var(--accent); }
+.randbtn b { display: block; }
+.randbtn small { color: var(--muted); font-size: 13px; }
+.randbtn .dice { font-size: 26px; }
+.read { padding: 20px 16px 120px; display: flex; flex-direction: column; gap: 6px; }
+.read .when { color: var(--accent); font-weight: 700; font-size: 14px; }
+.read .date { color: var(--muted); font-size: 14px; }
+.read h2 { margin: 10px 0 4px; font-size: 22px; line-height: 1.35; text-wrap: balance; }
+.read .mood { font-size: 34px; }
+.read .text { white-space: pre-wrap; line-height: 1.85; font-size: 17px; margin-top: 8px; overflow-wrap: anywhere; }
+.readbar { position: fixed; left: 0; right: 0; bottom: 0; display: flex; gap: 10px; justify-content: center; padding: 12px 16px calc(14px + env(safe-area-inset-bottom)); background: linear-gradient(transparent, var(--bg) 30%); }
+.readbar button { padding: 12px 20px; border-radius: 99px; font-weight: 700; border: 1px solid var(--line); background: var(--surface); }
+.readbar button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+
 /* Settings sheet */
 .sheet-bg { position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 5; display: flex; align-items: flex-end; }
 .sheet { background: var(--surface); width: 100%; border-radius: 20px 20px 0 0; padding: 18px 16px calc(18px + env(safe-area-inset-bottom)); }
@@ -106,6 +121,7 @@ header h1 { margin: 0; font-size: 22px; flex: 1; }
   </header>
   <div class="search"><input id="q" type="search" placeholder="일기 검색"></div>
   <div class="stats" id="stats"></div>
+  <button class="randbtn hidden" id="randBtn"><span class="dice">🎲</span><span><b>그날의 일기 꺼내 읽기</b><small>지금까지 쓴 일기 중 하나를 랜덤으로 골라 줘요</small></span></button>
   <div id="list"></div>
   <button class="fab" id="newBtn">＋ 오늘 일기 쓰기</button>
 </section>
@@ -124,6 +140,18 @@ header h1 { margin: 0; font-size: 22px; flex: 1; }
     <input class="ttl" id="edTitle" placeholder="제목 (없어도 돼요)" maxlength="80">
     <textarea id="edBody" placeholder="오늘 하루는 어땠나요?"></textarea>
     <button class="del hidden" id="delBtn">이 일기 지우기</button>
+  </div>
+</section>
+
+<section id="reader" class="screen hidden">
+  <header>
+    <button class="iconbtn" id="readBack" aria-label="뒤로">←</button>
+    <h1>그날의 일기</h1>
+  </header>
+  <article class="read" id="readBody"></article>
+  <div class="readbar">
+    <button id="readEdit">고치기</button>
+    <button class="primary" id="readAgain">🎲 다른 일기</button>
   </div>
 </section>
 
@@ -260,7 +288,7 @@ header h1 { margin: 0; font-size: 22px; flex: 1; }
   // ---------- screens ----------
   let unlocked = false;
   function show(id) {
-    ['lock', 'home', 'editor'].forEach((s) => $(s).classList.toggle('hidden', s !== id));
+    ['lock', 'home', 'editor', 'reader'].forEach((s) => $(s).classList.toggle('hidden', s !== id));
     $('settings').classList.add('hidden');
     window.scrollTo(0, 0);
   }
@@ -286,6 +314,7 @@ header h1 { margin: 0; font-size: 22px; flex: 1; }
     const items = q ? all.filter((e) => (e.title + ' ' + e.body).toLowerCase().includes(q)) : all;
     const month = today().slice(0, 7);
     const thisMonth = data.entries.filter((e) => e.date.startsWith(month)).length;
+    $('randBtn').classList.toggle('hidden', !data.entries.length || !!q);
     $('stats').textContent = data.entries.length ? `모두 ${data.entries.length}편 · 이번 달 ${thisMonth}편` : '';
     if (!items.length) {
       $('list').innerHTML = q ? `<div class="empty"><div>🔍</div>"${esc(q)}"이(가) 들어간 일기가 없어요</div>`
@@ -360,9 +389,39 @@ header h1 { margin: 0; font-size: 22px; flex: 1; }
   window.__back = () => {
     if (!$('settings').classList.contains('hidden')) { $('settings').classList.add('hidden'); return true; }
     if (!$('editor').classList.contains('hidden')) { goBack(); return true; }
+    if (!$('reader').classList.contains('hidden')) { renderList(); show('home'); return true; }
     if (!$('lock').classList.contains('hidden') && unlocked) { firstPin = ''; show('home'); return true; }
     return false;
   };
+
+  // ---------- random reader ----------
+  let reading = null;
+  function ago(date) {
+    const days = Math.round((new Date(today() + 'T00:00:00') - new Date(date + 'T00:00:00')) / 86400000);
+    if (days <= 0) return '오늘';
+    if (days === 1) return '어제';
+    if (days < 31) return `${days}일 전`;
+    if (days < 365) return `${Math.floor(days / 30)}달 전`;
+    const y = Math.floor(days / 365), m = Math.floor((days % 365) / 30);
+    return m ? `${y}년 ${m}달 전` : `${y}년 전`;
+  }
+  function drawRandom() {
+    const pool = data.entries.length > 1 ? data.entries.filter((e) => e !== reading) : data.entries;
+    if (!pool.length) { show('home'); return; }
+    reading = pool[Math.floor(Math.random() * pool.length)];
+    const e = reading, d = new Date(e.date + 'T00:00:00');
+    $('readBody').innerHTML = `<div class="when">${ago(e.date)}의 나</div>
+      <div class="date">${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일 ${WD[d.getDay()]}요일</div>
+      ${e.mood != null ? `<div class="mood">${MOODS[e.mood]}</div>` : ''}
+      <h2>${esc(e.title || '제목 없음')}</h2>
+      <div class="text">${esc(e.body)}</div>`;
+    $('readAgain').classList.toggle('hidden', data.entries.length < 2);
+    show('reader');
+  }
+  $('randBtn').addEventListener('click', () => { reading = null; drawRandom(); });
+  $('readAgain').addEventListener('click', drawRandom);
+  $('readEdit').addEventListener('click', () => { if (reading) openEditor(reading); });
+  $('readBack').addEventListener('click', () => { renderList(); show('home'); });
 
   // ---------- home buttons ----------
   $('newBtn').addEventListener('click', () => openEditor(null));
