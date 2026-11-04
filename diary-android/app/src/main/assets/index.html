@@ -170,7 +170,8 @@ header h1 { margin: 0; font-size: 22px; flex: 1; }
 
   // lock modes: 'unlock' | 'setup' | 'confirm' | 'verifyOld' | 'changeNew' | 'changeConfirm'
   let mode = 'unlock', typed = '', firstPin = '', pinLen = 4, busy = false;
-  let fails = Number(sessionStorage.getItem('fails') || 0), waitUntil = 0;
+  const ss = { get: (k) => { try { return sessionStorage.getItem(k); } catch (e) { return null; } }, set: (k, v) => { try { sessionStorage.setItem(k, v); } catch (e) {} } };
+  let fails = Number(ss.get('fails') || 0), waitUntil = 0;
 
   const TEXT = {
     unlock: ['내 일기', '비밀번호를 입력하세요'],
@@ -208,11 +209,11 @@ header h1 { margin: 0; font-size: 22px; flex: 1; }
       if (mode === 'unlock' || mode === 'verifyOld') {
         const ok = (await hashPin(pin, data.pin.salt)) === data.pin.hash;
         if (ok) {
-          fails = 0; sessionStorage.setItem('fails', 0);
+          fails = 0; ss.set('fails', 0);
           if (mode === 'unlock') { unlocked = true; renderList(); show('home'); }
           else showLock('changeNew');
         } else {
-          fails++; sessionStorage.setItem('fails', fails);
+          fails++; ss.set('fails', fails);
           if (fails >= 5) { waitUntil = Date.now() + 30000; shake('5번 틀렸어요. 30초 뒤에 다시 해 주세요'); }
           else shake(`비밀번호가 달라요 (${fails}/5)`);
         }
