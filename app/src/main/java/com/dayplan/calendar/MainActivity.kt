@@ -80,6 +80,12 @@ class MainActivity : Activity() {
         CalendarWidget.refresh(this)
     }
 
+    override fun onStop() {
+        super.onStop()
+        // Leaving the app locks the 일기 tab.
+        web.evaluateJavascript("window.Diary && window.Diary.lock()", null)
+    }
+
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == REQ_CAL && grantResults.any { it == PackageManager.PERMISSION_GRANTED }) {
@@ -90,7 +96,10 @@ class MainActivity : Activity() {
 
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
-        if (web.canGoBack()) web.goBack() else super.onBackPressed()
+        web.evaluateJavascript("!!(window.Diary && window.Diary.back())") { handled ->
+            if (handled == "true") return@evaluateJavascript
+            if (web.canGoBack()) web.goBack() else finish()
+        }
     }
 
     /** Serves the bundled page, wrapped in a document with the bridge loaded first. */

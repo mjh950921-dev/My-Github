@@ -21,5 +21,11 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Lets the calendar app (same signing key, checked in code) move the diary into its 일기 tab. -->
+        <provider
+            android:name=".ExportProvider"
+            android:authorities="com.dayplan.diary.export"
+            android:exported="true" />
     </application>
 </manifest>

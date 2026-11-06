@@ -201,6 +201,7 @@ textarea.in { min-height: 70px; resize: vertical; }
       <button id="v-month" aria-pressed="true">월</button>
       <button id="v-week" aria-pressed="false">주</button>
       <button id="v-plan" aria-pressed="false">계획</button>
+      <button id="v-diary" aria-pressed="false" hidden>일기</button>
     </div>
     <span class="status" id="status">이 기기에 저장</span>
     <button class="gpill" id="g-status" type="button" hidden>구글 캘린더</button>
@@ -226,6 +227,7 @@ textarea.in { min-height: 70px; resize: vertical; }
       <div class="progress" id="p-progress"><div class="track"><div class="fill" id="p-fill"></div></div><span id="p-count"></span></div>
       <div class="list" id="p-list"></div>
     </section>
+    <section id="diaryView" hidden></section>
   </main>
   <button class="fab" id="b-add" aria-label="일정 추가"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
 </div>
@@ -467,7 +469,9 @@ textarea.in { min-height: 70px; resize: vertical; }
       const evs = eventsOn(ds), max = HOLIDAYS[ds] ? 1 : 2;
       evs.slice(0, max).forEach((e) => { const ch = el("span", "chip", e.title); ch.style.background = `var(--${e.color || "c1"})`; c.append(ch); });
       if (evs.length > max) c.append(el("span", "more", `+${evs.length - max}`));
-      c.setAttribute("aria-label", `${d.getMonth() + 1}월 ${d.getDate()}일 ${DOW[d.getDay()]}요일, 일정 ${evs.length}개`);
+      const hasDiary = !!(window.Diary && window.Diary.has(ds));
+      if (hasDiary) c.classList.add("has-diary");
+      c.setAttribute("aria-label", `${d.getMonth() + 1}월 ${d.getDate()}일 ${DOW[d.getDay()]}요일, 일정 ${evs.length}개${hasDiary ? ", 일기 있음" : ""}`);
       c.addEventListener("click", () => {
         if (selected === ds && d.getMonth() === m) { openSheet(null, ds); return; }
         selected = ds;
@@ -483,6 +487,14 @@ textarea.in { min-height: 70px; resize: vertical; }
     const evs = eventsOn(selected);
     if (evs.length) evs.forEach((e) => list.append(itemNode(e)));
     else list.append(emptyNode("이 날은 일정이 없어요.\n오른쪽 아래 + 버튼이나 날짜를 한 번 더 누르면 추가할 수 있어요."));
+    if (window.Diary && (window.Diary.has(selected) || selected <= today)) {
+      const has = window.Diary.has(selected);
+      const b = el("button", "diarylink"); b.type = "button";
+      const w = el("span"); w.append(el("b", null, has ? "이 날의 일기 읽기" : "이 날 일기 쓰기"), el("small", null, "비밀번호로 잠겨 있어요"));
+      b.append(el("span", null, "📔"), w);
+      b.addEventListener("click", () => { view = "diary"; render(); window.Diary.openDate(selected); });
+      list.parentNode.append(b);
+    }
   }
 
   function renderWeek() {
@@ -597,11 +609,14 @@ textarea.in { min-height: 70px; resize: vertical; }
   }
 
   function render() {
+    if (view === "diary" && !window.Diary) view = "month";
     $("monthView").hidden = view !== "month"; $("weekView").hidden = view !== "week"; $("planView").hidden = view !== "plan";
-    ["month", "week", "plan"].forEach((v) => $("v-" + v).setAttribute("aria-pressed", view === v));
-    $("b-add").setAttribute("aria-label", view === "plan" ? "목표 추가" : "일정 추가");
-    $("b-prev").hidden = $("b-next").hidden = view === "plan";
-    if (view === "month") renderMonth(); else if (view === "week") renderWeek(); else renderPlan();
+    $("diaryView").hidden = view !== "diary";
+    ["month", "week", "plan", "diary"].forEach((v) => $("v-" + v).setAttribute("aria-pressed", view === v));
+    $("b-add").setAttribute("aria-label", view === "plan" ? "목표 추가" : view === "diary" ? "일기 쓰기" : "일정 추가");
+    $("b-prev").hidden = $("b-next").hidden = view === "plan" || view === "diary";
+    $("b-today").hidden = view === "diary";
+    if (view === "month") renderMonth(); else if (view === "week") renderWeek(); else if (view === "plan") renderPlan(); else window.Diary.render();
     if (gState === "ok" || gState === "loading") gFetch(false);
   }
 
@@ -616,7 +631,7 @@ textarea.in { min-height: 70px; resize: vertical; }
 
   // Navigation
   function shift(dir) {
-    if (view === "plan") return;
+    if (view === "plan" || view === "diary") return;
     if (view === "month") {
       cursor = new Date(cursor.getFullYear(), cursor.getMonth() + dir, 1);
       const sd = parse(selected);
@@ -636,6 +651,10 @@ textarea.in { min-height: 70px; resize: vertical; }
   $("p-year").addEventListener("change", () => { pyear = $("p-year").value; lsSet(LS_PYEAR, pyear); render(); });
   $("v-month").addEventListener("click", () => { view = "month"; lsSet(LS_VIEW, view); const sd = parse(selected); cursor = new Date(sd.getFullYear(), sd.getMonth(), 1); render(); });
   $("v-week").addEventListener("click", () => { view = "week"; lsSet(LS_VIEW, view); render(); });
+  // 일기 tab (diary.js). Not remembered as the start view, so the app always opens on the calendar.
+  $("v-diary").addEventListener("click", () => { view = "diary"; render(); });
+  window.__setCalView = (v) => { view = v; render(); };
+  window.__calRender = () => { if (view !== "diary") render(); };
 
   let tx = null, ty = null;
   $("main").addEventListener("touchstart", (e) => { tx = e.touches[0].clientX; ty = e.touches[0].clientY; }, { passive: true });
@@ -693,7 +712,7 @@ textarea.in { min-height: 70px; resize: vertical; }
     if (!ev) setTimeout(() => $("f-title").focus(), 60);
   }
   function closeSheet() { $("scrim").hidden = true; editing = null; }
-  $("b-add").addEventListener("click", () => (view === "plan" ? openPlanSheet(pmode === "bucket" ? "bucket" : "goal", null) : openSheet(null)));
+  $("b-add").addEventListener("click", () => (view === "diary" ? window.Diary.add() : view === "plan" ? openPlanSheet(pmode === "bucket" ? "bucket" : "goal", null) : openSheet(null)));
   $("b-cancel").addEventListener("click", closeSheet);
   $("scrim").addEventListener("click", (e) => { if (e.target === $("scrim")) closeSheet(); });
   document.addEventListener("keydown", (e) => {
@@ -1013,9 +1032,10 @@ textarea.in { min-height: 70px; resize: vertical; }
   window.__openDate = (ds) => {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(ds)) return;
     selected = ds; const d = parse(ds); cursor = new Date(d.getFullYear(), d.getMonth(), 1);
-    if (view === "plan") { view = "month"; lsSet(LS_VIEW, view); }
+    if (view === "plan" || view === "diary") { view = "month"; lsSet(LS_VIEW, view); }
     render();
   };
   setStatus(); render(); connect(); gInit();
 })();
 </script>
+<script src="diary.js"></script>
