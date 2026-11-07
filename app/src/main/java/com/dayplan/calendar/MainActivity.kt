@@ -47,9 +47,13 @@ class MainActivity : Activity() {
         seenOutside = Store.outsideVersion(this)
         web.loadUrl("https://$HOST/assets/index.html")
 
-        if (!CalendarRepo.hasPermission(this)) {
-            requestPermissions(arrayOf(Manifest.permission.READ_CALENDAR, Manifest.permission.WRITE_CALENDAR), REQ_CAL)
-        }
+        EventReminders.ensureChannel(this)
+        EventReminders.schedule(this)
+        val ask = ArrayList<String>()
+        if (!CalendarRepo.hasPermission(this)) ask += listOf(Manifest.permission.READ_CALENDAR, Manifest.permission.WRITE_CALENDAR)
+        if (android.os.Build.VERSION.SDK_INT >= 33 &&
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) ask += Manifest.permission.POST_NOTIFICATIONS
+        if (ask.isNotEmpty()) requestPermissions(ask.toTypedArray(), REQ_CAL)
     }
 
     private var pendingDate: String? = null

@@ -25,7 +25,7 @@ object WidgetData {
         "c1" to "#0d7558", "c2" to "#d4552f", "c3" to "#4a5bd0", "c4" to "#b97c06", "c5" to "#9a3fa8"
     )
 
-    private fun arr(ctx: Context, key: String): List<JSONObject> = try {
+    fun arr(ctx: Context, key: String): List<JSONObject> = try {
         val a = JSONArray(Store.get(ctx, key) ?: "[]")
         (0 until a.length()).mapNotNull { a.optJSONObject(it) }
     } catch (e: Exception) { emptyList() }
@@ -34,7 +34,7 @@ object WidgetData {
     private fun lastWeek(d: LocalDate) = d.dayOfMonth + 7 > d.lengthOfMonth()
 
     /** Same rules as occursOn() in the page. */
-    private fun occursOn(ev: JSONObject, d: LocalDate): Boolean {
+    fun occursOn(ev: JSONObject, d: LocalDate): Boolean {
         val b = runCatching { LocalDate.parse(ev.optString("date")) }.getOrNull() ?: return false
         if (d.isBefore(b)) return false
         if (d == b) return true

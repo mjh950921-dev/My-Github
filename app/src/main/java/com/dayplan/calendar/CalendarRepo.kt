@@ -130,10 +130,13 @@ object CalendarRepo {
             v.put(Events.DTEND, end)
         }
         val uri = ctx.contentResolver.insert(Events.CONTENT_URI, v) ?: throw IllegalStateException("insert failed")
-        if (!allDay) {
+        // All-day events start at midnight, so only "하루 전" (전날 오전 9시) maps onto a calendar reminder.
+        val remind = o.optInt("reminderMinutes", 10)
+        val minutes = when { remind < 0 -> null; !allDay -> remind; remind >= 1440 -> 900; else -> null }
+        if (minutes != null) {
             ctx.contentResolver.insert(Reminders.CONTENT_URI, ContentValues().apply {
                 put(Reminders.EVENT_ID, ContentUris.parseId(uri))
-                put(Reminders.MINUTES, 10)
+                put(Reminders.MINUTES, minutes)
                 put(Reminders.METHOD, Reminders.METHOD_ALERT)
             })
         }

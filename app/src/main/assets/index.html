@@ -264,6 +264,16 @@ textarea.in { min-height: 70px; resize: vertical; }
           <label><input type="radio" name="color" id="f-c5" value="c5"><span style="background:var(--c5)"></span></label>
         </div>
       </div>
+      <label class="f">알림
+        <select class="in" id="f-remind">
+          <option value="-1">알림 없음</option>
+          <option value="0">일정 시작할 때</option>
+          <option value="10">10분 전</option>
+          <option value="30">30분 전</option>
+          <option value="60">1시간 전</option>
+          <option value="1440">하루 전</option>
+        </select>
+      </label>
       <label class="f">메모<textarea class="in" id="f-memo" maxlength="1000" placeholder="장소, 준비물 등"></textarea></label>
       <div class="toggle" id="gRow" hidden><span>구글 캘린더에 저장<br><small style="color:var(--muted);font-size:12px">삼성 캘린더에도 보이고 알림이 울려요</small></span><input type="checkbox" id="f-google"></div>
       <p class="hint" id="roHint" hidden style="margin:0">구글 캘린더 일정이에요. 수정은 구글·삼성 캘린더에서 해 주세요.</p>
@@ -680,6 +690,7 @@ textarea.in { min-height: 70px; resize: vertical; }
     syncRepeatOptions();
     $("f-repeat").value = ev ? ev.repeat || "none" : "none";
     $("f-memo").value = ev ? ev.memo || "" : "";
+    $("f-remind").value = ev && ev.remind != null ? String(ev.remind) : "10";
     const c = $("f-" + ((ev && ev.color) || "c1")); if (c) c.checked = true;
     delBtn.hidden = !ev; delBtn.classList.remove("armed"); delBtn.textContent = "삭제";
     const ro = !!(ev && ev.google) && !window.__nativeCal;
@@ -823,7 +834,7 @@ textarea.in { min-height: 70px; resize: vertical; }
       id: editing ? editing.id : uid(), title, date, allDay,
       start: allDay ? "" : start, end: allDay ? "" : end,
       repeat: $("f-repeat").value, color: (document.querySelector('input[name="color"]:checked') || {}).value || "c1",
-      memo: $("f-memo").value.trim(), updatedAt: Date.now()
+      memo: $("f-memo").value.trim(), remind: +$("f-remind").value, updatedAt: Date.now()
     };
     const wasEdit = !!editing;
     if (wasEdit && editing.google && window.__nativeCal) {
@@ -957,6 +968,7 @@ textarea.in { min-height: 70px; resize: vertical; }
       monthnth: `RRULE:FREQ=MONTHLY;BYDAY=${nth}${wd}`, monthlast: `RRULE:FREQ=MONTHLY;BYDAY=-1${wd}`,
       yearnth: `RRULE:FREQ=YEARLY;BYMONTH=${bd.getMonth() + 1};BYDAY=${nth}${wd}`, yearlast: `RRULE:FREQ=YEARLY;BYMONTH=${bd.getMonth() + 1};BYDAY=-1${wd}` }[ev.repeat];
     if (rr) input.recurrenceData = [rr];
+    input.reminderMinutes = ev.remind == null ? 10 : ev.remind;
     return input;
   }
   async function gCreate(ev) {

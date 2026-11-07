@@ -13,6 +13,7 @@ class Bridge(private val activity: MainActivity) {
     @JavascriptInterface fun save(key: String, value: String) {
         Store.put(ctx, key, value)
         CalendarWidget.refresh(ctx)
+        if (key == "cal.events") EventReminders.schedule(ctx)
     }
 
     @JavascriptInterface fun calPermission(): Boolean = CalendarRepo.hasPermission(ctx)
