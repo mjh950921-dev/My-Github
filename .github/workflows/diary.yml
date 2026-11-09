@@ -1,0 +1,44 @@
+name: Build diary APK
+
+on:
+  push:
+    paths:
+      - "diary-android/**"
+      - ".github/workflows/diary.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: diary-android
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+      - name: Build
+        run: gradle assembleRelease --no-daemon --stacktrace
+      - name: Rename
+        run: cp app/build/outputs/apk/release/app-release.apk diary.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: diary-apk
+          path: diary-android/diary.apk
+      # Kept off "latest" so the calendar app's download link keeps pointing at calendar.apk.
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "diary-v${{ github.run_number }}" diary.apk \
+            --target "${{ github.sha }}" \
+            --title "내 일기 v1.0.${{ github.run_number }}" \
+            --notes "폰에서 diary.apk를 받아 설치하세요." --latest=false
