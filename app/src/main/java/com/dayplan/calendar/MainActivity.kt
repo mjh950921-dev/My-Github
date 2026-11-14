@@ -74,6 +74,8 @@ class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
+        CalendarWatch.syncNow(this)
+        CalendarWatch.schedule(this)
         // Goals checked off on the widget: show them.
         val v = Store.outsideVersion(this)
         if (v != seenOutside) { seenOutside = v; web.reload() }
@@ -89,6 +91,7 @@ class MainActivity : Activity() {
         if (requestCode == REQ_CAL && grantResults.any { it == PackageManager.PERMISSION_GRANTED }) {
             web.reload()
             CalendarWidget.refresh(this)
+            CalendarWatch.schedule(this)
         }
     }
 

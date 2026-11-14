@@ -127,7 +127,8 @@ class ReminderReceiver : BroadcastReceiver() {
         val result = goAsync()
         Thread {
             try {
-                if (intent.action == null) EventReminders.fire(ctx) else EventReminders.schedule(ctx)
+                if (intent.action == null) EventReminders.fire(ctx)
+                else { EventReminders.schedule(ctx); CalendarWatch.schedule(ctx); CalendarWidget.refresh(ctx) }
             } finally { result.finish() }
         }.start()
     }
