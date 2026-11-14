@@ -186,6 +186,27 @@ textarea.in { min-height: 70px; resize: vertical; }
 .tag { font-size: 11.5px; padding: 2px 8px; border-radius: 10px; background: var(--accent-soft); color: var(--accent); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tag.plain { background: var(--bg); color: var(--muted); }
 
+/* To-dos: one-off tasks with a day (or a few days). Unfinished ones carry over to today. */
+.todo { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 12px; align-items: center; background: var(--surface); border: 1px dashed var(--accent); border-radius: 12px; padding: 10px 12px; }
+.todo .tb { border: 0; background: none; padding: 0; text-align: left; min-width: 0; }
+.todo .tb b { display: block; font-weight: 500; overflow-wrap: anywhere; }
+.todo .tb span { display: block; font-size: 12.5px; color: var(--muted); margin-top: 2px; overflow-wrap: anywhere; white-space: pre-line; }
+.todo .tb span.late { color: var(--sun); }
+.todo.done { border-style: solid; border-color: var(--line); }
+.todo.done .check { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.todo.done .check svg { opacity: 1; }
+.todo.done .tb b { text-decoration: line-through; color: var(--muted); }
+.chip.tchip { background: none; color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.agenda h2 .addtodo, .wday .addtodo { margin-left: auto; }
+.addtodo { border: 0; background: none; color: var(--accent); font-size: 13.5px; font-weight: 500; padding: 2px 0; }
+.subhead { margin: 18px 0 8px; font-size: 13px; font-weight: 500; color: var(--muted); letter-spacing: .02em; }
+.subhead:first-child { margin-top: 0; }
+.subhead.late { color: var(--sun); }
+.quick { display: flex; flex-wrap: wrap; gap: 6px; margin-top: -4px; }
+.quick button { border: 1px solid var(--line); background: var(--bg); border-radius: 15px; padding: 5px 12px; font-size: 13px; color: var(--muted); }
+.quick button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.kind { align-self: flex-start; margin: -4px 0 12px; }
+
 .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(92px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 10px; font-size: 14px; z-index: 30; max-width: calc(100% - 32px); }
 </style>
 
@@ -200,6 +221,7 @@ textarea.in { min-height: 70px; resize: vertical; }
     <div class="seg" role="group" aria-label="보기">
       <button id="v-month" aria-pressed="true">월</button>
       <button id="v-week" aria-pressed="false">주</button>
+      <button id="v-todo" aria-pressed="false">할 일</button>
       <button id="v-plan" aria-pressed="false">계획</button>
     </div>
     <span class="status" id="status">이 기기에 저장</span>
@@ -216,6 +238,10 @@ textarea.in { min-height: 70px; resize: vertical; }
     </section>
     <section id="weekView" hidden>
       <div class="week" id="week"></div>
+    </section>
+    <section id="todoView" hidden>
+      <div class="progress" id="t-progress"><div class="track"><div class="fill" id="t-fill"></div></div><span id="t-count"></span></div>
+      <div id="t-list"></div>
     </section>
     <section id="planView" hidden>
       <div class="levels" role="group" aria-label="계획 종류">
@@ -234,6 +260,7 @@ textarea.in { min-height: 70px; resize: vertical; }
   <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="s-title">
     <div class="grab"></div>
     <h3 id="s-title">새 일정</h3>
+    <div class="seg kind" role="group" aria-label="종류" id="kindSeg"><button type="button" aria-pressed="true">일정</button><button type="button" id="k-todo" aria-pressed="false">할 일</button></div>
     <form id="form" autocomplete="off">
       <label class="f">제목<input class="in" id="f-title" required maxlength="80" placeholder="예: 치과 예약"></label>
       <label class="f">날짜<input class="in" id="f-date" type="date" required></label>
@@ -313,6 +340,34 @@ textarea.in { min-height: 70px; resize: vertical; }
     </form>
   </div>
 </div>
+<div class="scrim" id="tscrim" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="t-head">
+    <div class="grab"></div>
+    <h3 id="t-head">새 할 일</h3>
+    <div class="seg kind" role="group" aria-label="종류" id="tkindSeg"><button type="button" id="k-ev" aria-pressed="false">일정</button><button type="button" aria-pressed="true">할 일</button></div>
+    <form id="tform" autocomplete="off">
+      <label class="f">할 일<input class="in" id="t-title" required maxlength="80" placeholder="예: 세탁소 옷 찾기"></label>
+      <div class="quick" role="group" aria-label="빠르게 고르기" id="t-quick">
+        <button type="button" data-q="today">오늘</button>
+        <button type="button" data-q="tomorrow">내일</button>
+        <button type="button" data-q="week">이번 주</button>
+        <button type="button" data-q="month">이번 달</button>
+      </div>
+      <div class="row">
+        <label class="f">날짜<input class="in" id="t-date" type="date" required></label>
+        <label class="f">까지 (선택)<input class="in" id="t-until" type="date"></label>
+      </div>
+      <p class="hint">못 끝낸 할 일은 다음 날부터 오늘 목록에 계속 남아 있어요.</p>
+      <label class="f">메모<textarea class="in" id="t-memo" maxlength="1000" placeholder="필요한 것, 연락처 등"></textarea></label>
+      <div class="toggle"><span>다 했어요</span><input type="checkbox" id="t-done"></div>
+      <div class="actions">
+        <button type="button" class="btn danger" id="t-del" hidden>삭제</button>
+        <button type="button" class="btn" id="t-cancel">취소</button>
+        <button type="submit" class="btn primary">저장</button>
+      </div>
+    </form>
+  </div>
+</div>
 <div class="toast" id="toast" hidden></div>
 
 <script>
@@ -359,7 +414,7 @@ textarea.in { min-height: 70px; resize: vertical; }
   try { (JSON.parse(lsGet(LS_EVENTS) || "[]")).forEach((e) => e && e.id && events.set(e.id, e)); } catch {}
   let mode = "local";      // "local" | "db"
   let colRef = null;
-  let view = ["week", "plan"].includes(lsGet(LS_VIEW)) ? lsGet(LS_VIEW) : "month";
+  let view = ["week", "todo", "plan"].includes(lsGet(LS_VIEW)) ? lsGet(LS_VIEW) : "month";
   let selected = ymd(new Date());
   let cursor = new Date(); cursor.setDate(1);
   let editing = null;
@@ -408,7 +463,32 @@ textarea.in { min-height: 70px; resize: vertical; }
   const dueLabel = (s) => (s.dueType === "year" ? `${s.due}년` : String(s.due).replace("-", "."));
   const isLate = (s) => !s.done && (s.dueType === "year" ? +s.due < thisYear() : s.due < thisMonth());
 
+  // To-dos (kind: "todo"): a title, a day (date) or a few days (date..until), done/doneAt.
+  // Unfinished to-dos whose last day has passed carry over to today.
+  const LS_TODOS = "cal.todos";
+  let todos = new Map();
+  try { (JSON.parse(lsGet(LS_TODOS) || "[]")).forEach((t) => t && t.id && todos.set(t.id, t)); } catch {}
+  let editingTodo = null;
+  const tEnd = (t) => (t.until && t.until > t.date ? t.until : t.date);
+  const todayStr = () => ymd(new Date());
+  const shortDate = (s) => { const d = parse(s); return `${d.getMonth() + 1}.${d.getDate()}`; };
+  const byTodo = (a, b) => byDone(a, b) || a.date.localeCompare(b.date) || (a.createdAt || 0) - (b.createdAt || 0);
+  function todosOn(ds) {
+    const today = todayStr();
+    return [...todos.values()].filter((t) => (t.date <= ds && ds <= tEnd(t)) || (ds === today && !t.done && tEnd(t) < today)).sort(byTodo);
+  }
+  function todoMeta(t) {
+    const today = todayStr(), end = tEnd(t), bits = [];
+    if (!t.done && end < today) {
+      const n = Math.round((parse(today) - parse(end)) / 864e5);
+      bits.push({ text: `${shortDate(end)}까지였어요 · ${n}일 지남`, late: true });
+    } else if (end !== t.date) bits.push({ text: `${shortDate(t.date)} – ${shortDate(end)}` });
+    if (t.memo) bits.push({ text: t.memo });
+    return bits;
+  }
+
   function cache(src) {
+    lsSet(LS_TODOS, JSON.stringify([...todos.values()]));
     lsSet(LS_EVENTS, JSON.stringify([...events.values()]));
     lsSet(LS_PLANS, JSON.stringify([...plans.values()]));
     lsSet(LS_SOURCE, src); source = src;
@@ -455,6 +535,25 @@ textarea.in { min-height: 70px; resize: vertical; }
   }
   function emptyNode(text) { return el("div", "empty", text); }
 
+  function todoNode(t) {
+    const row = el("div", "todo" + (t.done ? " done" : ""));
+    const ck = el("button", "check"); ck.type = "button"; ck.innerHTML = checkSvg;
+    ck.setAttribute("aria-label", t.done ? `${t.title} 완료 취소` : `${t.title} 완료`);
+    ck.addEventListener("click", () => saveTodo({ ...t, done: !t.done, doneAt: t.done ? null : Date.now(), updatedAt: Date.now() }, t.done ? null : "완료했어요"));
+    const b = el("button", "tb"); b.type = "button";
+    b.append(el("b", null, t.title));
+    todoMeta(t).forEach((m) => b.append(el("span", m.late ? "late" : null, m.text)));
+    b.addEventListener("click", () => openTodoSheet(t));
+    row.append(ck, b);
+    return row;
+  }
+  function addTodoBtn(ds) {
+    const a = el("button", "addtodo", "+ 할 일"); a.type = "button";
+    a.setAttribute("aria-label", `${parse(ds).getMonth() + 1}월 ${parse(ds).getDate()}일에 할 일 추가`);
+    a.addEventListener("click", (e) => { e.stopPropagation(); openTodoSheet(null, ds); });
+    return a;
+  }
+
   function renderMonth() {
     const y = cursor.getFullYear(), m = cursor.getMonth();
     $("t-main").textContent = `${m + 1}월`; $("t-sub").textContent = `${y}`;
@@ -474,10 +573,14 @@ textarea.in { min-height: 70px; resize: vertical; }
       if (ds === selected) c.classList.add("sel");
       c.append(el("span", "num", d.getDate()));
       if (HOLIDAYS[ds]) c.append(el("span", "chip hname", HOLIDAYS[ds]));
-      const evs = eventsOn(ds), max = HOLIDAYS[ds] ? 1 : 2;
-      evs.slice(0, max).forEach((e) => { const ch = el("span", "chip", e.title); ch.style.background = `var(--${e.color || "c1"})`; c.append(ch); });
-      if (evs.length > max) c.append(el("span", "more", `+${evs.length - max}`));
-      c.setAttribute("aria-label", `${d.getMonth() + 1}월 ${d.getDate()}일 ${DOW[d.getDay()]}요일, 일정 ${evs.length}개`);
+      const evs = eventsOn(ds), tds = todosOn(ds).filter((t) => !t.done), max = HOLIDAYS[ds] ? 1 : 2;
+      const shown = [...evs, ...tds];
+      shown.slice(0, max).forEach((e) => {
+        if (e.kind === "todo") { c.append(el("span", "chip tchip", "☐ " + e.title)); return; }
+        const ch = el("span", "chip", e.title); ch.style.background = `var(--${e.color || "c1"})`; c.append(ch);
+      });
+      if (shown.length > max) c.append(el("span", "more", `+${shown.length - max}`));
+      c.setAttribute("aria-label", `${d.getMonth() + 1}월 ${d.getDate()}일 ${DOW[d.getDay()]}요일, 일정 ${evs.length}개` + (tds.length ? `, 할 일 ${tds.length}개` : ""));
       c.addEventListener("click", () => {
         if (selected === ds && d.getMonth() === m) { openSheet(null, ds); return; }
         selected = ds;
@@ -489,10 +592,12 @@ textarea.in { min-height: 70px; resize: vertical; }
     const sd = parse(selected);
     const h = $("a-title"); h.replaceChildren(document.createTextNode(`${sd.getMonth() + 1}월 ${sd.getDate()}일 ${DOW[sd.getDay()]}요일`));
     if (HOLIDAYS[selected]) h.append(el("small", null, HOLIDAYS[selected]));
+    h.append(addTodoBtn(selected));
     const list = $("a-list"); list.replaceChildren();
-    const evs = eventsOn(selected);
+    const evs = eventsOn(selected), tds = todosOn(selected);
+    tds.forEach((t) => list.append(todoNode(t)));
     if (evs.length) evs.forEach((e) => list.append(itemNode(e)));
-    else list.append(emptyNode("이 날은 일정이 없어요.\n오른쪽 아래 + 버튼이나 날짜를 한 번 더 누르면 추가할 수 있어요."));
+    else if (!tds.length) list.append(emptyNode("이 날은 일정이 없어요.\n오른쪽 아래 + 버튼이나 날짜를 한 번 더 누르면 추가할 수 있어요."));
   }
 
   function renderWeek() {
@@ -511,9 +616,10 @@ textarea.in { min-height: 70px; resize: vertical; }
       dd.addEventListener("click", () => { selected = ds; openSheet(null, ds); });
       const list = el("div", "list");
       if (HOLIDAYS[ds]) { const hn = el("div", "empty", HOLIDAYS[ds]); hn.style.color = "var(--sun)"; hn.style.borderStyle = "solid"; list.append(hn); }
-      const evs = eventsOn(ds);
+      const evs = eventsOn(ds), tds = todosOn(ds);
+      tds.forEach((t) => list.append(todoNode(t)));
       evs.forEach((e) => list.append(itemNode(e)));
-      if (!evs.length && !HOLIDAYS[ds]) list.append(emptyNode("일정 없음"));
+      if (!evs.length && !tds.length && !HOLIDAYS[ds]) list.append(emptyNode("일정 없음"));
       row.append(dd, list); wrap.append(row);
     }
   }
@@ -606,12 +712,40 @@ textarea.in { min-height: 70px; resize: vertical; }
       : (pyear === "all" ? "아직 목표가 없어요." : `${pyear}년에 해당하는 목표가 없어요.`) + "\n+ 버튼을 눌러 연도를 정하고 목표를 만들어 보세요."));
   }
 
+  // 할 일 tab: what's left from before, today, coming up, and recently done.
+  function renderTodo() {
+    const today = todayStr(), all = [...todos.values()];
+    const late = all.filter((t) => !t.done && tEnd(t) < today).sort(byTodo);
+    const doneToday = (t) => t.done && t.doneAt && ymd(new Date(t.doneAt)) === today;
+    // Overdue ones finished today stay in 오늘 so today's progress counts them.
+    const now = all.filter((t) => (t.date <= today && today <= tEnd(t)) || (tEnd(t) < today && doneToday(t))).sort(byTodo);
+    const later = all.filter((t) => !t.done && t.date > today).sort(byTodo);
+    const weekAgo = Date.now() - 7 * 864e5;
+    const done = all.filter((t) => t.done && tEnd(t) < today && !doneToday(t) && (t.doneAt || 0) >= weekAgo).sort((a, b) => (b.doneAt || 0) - (a.doneAt || 0));
+    const todayAll = [...late, ...now], left = todayAll.filter((t) => !t.done).length, fin = todayAll.length - left;
+    $("t-main").textContent = "할 일"; $("t-sub").textContent = left ? `오늘 ${left}개 남음` : "오늘 다 했어요";
+    $("t-progress").hidden = !todayAll.length;
+    $("t-fill").style.width = todayAll.length ? `${Math.round((fin / todayAll.length) * 100)}%` : "0";
+    $("t-count").textContent = `오늘 ${todayAll.length}개 중 ${fin}개 완료`;
+    const box = $("t-list"); box.replaceChildren();
+    const group = (title, list, cls) => {
+      if (!list.length) return;
+      box.append(el("h2", "subhead" + (cls ? " " + cls : ""), title));
+      const l = el("div", "list"); list.forEach((t) => l.append(todoNode(t))); box.append(l);
+    };
+    group("밀린 할 일", late, "late");
+    group("오늘", now);
+    group("앞으로", later);
+    group("최근 완료", done);
+    if (!box.childNodes.length) box.append(emptyNode("할 일이 없어요.\n+ 버튼을 눌러 오늘이나 이번 주에 할 일을 적어 보세요.\n반복하는 일정은 달력에서 '반복'으로 넣으면 돼요."));
+  }
+
   function render() {
-    $("monthView").hidden = view !== "month"; $("weekView").hidden = view !== "week"; $("planView").hidden = view !== "plan";
-    ["month", "week", "plan"].forEach((v) => $("v-" + v).setAttribute("aria-pressed", view === v));
-    $("b-add").setAttribute("aria-label", view === "plan" ? "목표 추가" : "일정 추가");
-    $("b-prev").hidden = $("b-next").hidden = view === "plan";
-    if (view === "month") renderMonth(); else if (view === "week") renderWeek(); else renderPlan();
+    $("monthView").hidden = view !== "month"; $("weekView").hidden = view !== "week"; $("planView").hidden = view !== "plan"; $("todoView").hidden = view !== "todo";
+    ["month", "week", "todo", "plan"].forEach((v) => $("v-" + v).setAttribute("aria-pressed", view === v));
+    $("b-add").setAttribute("aria-label", view === "plan" ? "목표 추가" : view === "todo" ? "할 일 추가" : "일정 추가");
+    $("b-prev").hidden = $("b-next").hidden = view === "plan" || view === "todo";
+    if (view === "month") renderMonth(); else if (view === "week") renderWeek(); else if (view === "todo") renderTodo(); else renderPlan();
     if (gState === "ok" || gState === "loading") gFetch(false);
   }
 
@@ -626,7 +760,7 @@ textarea.in { min-height: 70px; resize: vertical; }
 
   // Navigation
   function shift(dir) {
-    if (view === "plan") return;
+    if (view === "plan" || view === "todo") return;
     if (view === "month") {
       cursor = new Date(cursor.getFullYear(), cursor.getMonth() + dir, 1);
       const sd = parse(selected);
@@ -646,6 +780,7 @@ textarea.in { min-height: 70px; resize: vertical; }
   $("p-year").addEventListener("change", () => { pyear = $("p-year").value; lsSet(LS_PYEAR, pyear); render(); });
   $("v-month").addEventListener("click", () => { view = "month"; lsSet(LS_VIEW, view); const sd = parse(selected); cursor = new Date(sd.getFullYear(), sd.getMonth(), 1); render(); });
   $("v-week").addEventListener("click", () => { view = "week"; lsSet(LS_VIEW, view); render(); });
+  $("v-todo").addEventListener("click", () => { view = "todo"; lsSet(LS_VIEW, view); render(); });
 
   let tx = null, ty = null;
   $("main").addEventListener("touchstart", (e) => { tx = e.touches[0].clientX; ty = e.touches[0].clientY; }, { passive: true });
@@ -693,6 +828,7 @@ textarea.in { min-height: 70px; resize: vertical; }
     $("f-remind").value = ev && ev.remind != null ? String(ev.remind) : "10";
     const c = $("f-" + ((ev && ev.color) || "c1")); if (c) c.checked = true;
     delBtn.hidden = !ev; delBtn.classList.remove("armed"); delBtn.textContent = "삭제";
+    $("kindSeg").hidden = !!ev;
     const ro = !!(ev && ev.google) && !window.__nativeCal;
     $("form").querySelectorAll("input, select, textarea").forEach((x) => (x.disabled = ro));
     $("b-save").hidden = ro; $("roHint").hidden = !ro;
@@ -704,13 +840,84 @@ textarea.in { min-height: 70px; resize: vertical; }
     if (!ev) setTimeout(() => $("f-title").focus(), 60);
   }
   function closeSheet() { $("scrim").hidden = true; editing = null; }
-  $("b-add").addEventListener("click", () => (view === "plan" ? openPlanSheet(pmode === "bucket" ? "bucket" : "goal", null) : openSheet(null)));
+  $("b-add").addEventListener("click", () => (view === "plan" ? openPlanSheet(pmode === "bucket" ? "bucket" : "goal", null)
+    : view === "todo" ? openTodoSheet(null, todayStr()) : openSheet(null)));
   $("b-cancel").addEventListener("click", closeSheet);
   $("scrim").addEventListener("click", (e) => { if (e.target === $("scrim")) closeSheet(); });
   document.addEventListener("keydown", (e) => {
     if (e.key !== "Escape") return;
     if (!$("scrim").hidden) closeSheet();
     if (!$("gscrim").hidden) closePlanSheet();
+    if (!$("tscrim").hidden) closeTodoSheet();
+  });
+
+  // To-do sheet
+  const tDel = $("t-del");
+  function weekEnd(d) { return addDays(d, 6 - d.getDay()); }
+  function syncQuick() {
+    const t = new Date(), d = $("t-date").value, u = $("t-until").value || d;
+    const q = { today: [ymd(t), ymd(t)], tomorrow: [ymd(addDays(t, 1)), ymd(addDays(t, 1))],
+      week: [ymd(t), ymd(weekEnd(t))], month: [ymd(t), ymd(new Date(t.getFullYear(), t.getMonth() + 1, 0))] };
+    $("t-quick").querySelectorAll("button").forEach((b) => { const r = q[b.dataset.q]; b.setAttribute("aria-pressed", String(r[0] === d && r[1] === u)); b._range = r; });
+  }
+  $("t-quick").addEventListener("click", (e) => {
+    const b = e.target.closest("button"); if (!b || !b._range) return;
+    $("t-date").value = b._range[0]; $("t-until").value = b._range[1] === b._range[0] ? "" : b._range[1]; syncQuick();
+  });
+  $("t-date").addEventListener("change", () => { if ($("t-until").value && $("t-until").value < $("t-date").value) $("t-until").value = ""; syncQuick(); });
+  $("t-until").addEventListener("change", syncQuick);
+  function openTodoSheet(t, ds, title) {
+    editingTodo = t || null;
+    $("t-head").textContent = t ? "할 일 수정" : "새 할 일";
+    $("tkindSeg").hidden = !!t;
+    $("t-title").value = t ? t.title : title || "";
+    $("t-date").value = t ? t.date : ds || selected;
+    $("t-until").value = t && t.until && t.until > t.date ? t.until : "";
+    $("t-memo").value = t ? t.memo || "" : "";
+    $("t-done").checked = t ? !!t.done : false;
+    tDel.hidden = !t; tDel.classList.remove("armed"); tDel.textContent = "삭제";
+    syncQuick();
+    $("tscrim").hidden = false;
+    if (!t) setTimeout(() => $("t-title").focus(), 60);
+  }
+  function closeTodoSheet() { $("tscrim").hidden = true; editingTodo = null; }
+  $("t-cancel").addEventListener("click", closeTodoSheet);
+  $("tscrim").addEventListener("click", (e) => { if (e.target === $("tscrim")) closeTodoSheet(); });
+  $("k-todo").addEventListener("click", () => { const d = $("f-date").value, ti = $("f-title").value.trim(); closeSheet(); openTodoSheet(null, d, ti); });
+  $("k-ev").addEventListener("click", () => { const d = $("t-date").value, ti = $("t-title").value.trim(); closeTodoSheet(); openSheet(null, d); $("f-title").value = ti; });
+
+  async function saveTodo(t, msg) {
+    try {
+      if (mode === "db") await colRef.doc(t.id).set(t);
+      else { todos.set(t.id, t); cache("local"); }
+      if (msg) toast(msg);
+    } catch (err) { toast(err && err.code === "quota_exceeded" ? "저장 공간이 가득 찼어요." : "저장하지 못했어요. 잠시 후 다시 시도해 주세요."); }
+    render();
+  }
+  $("tform").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const title = $("t-title").value.trim(), date = $("t-date").value;
+    if (!title || !date) { toast("할 일과 날짜를 적어 주세요."); return; }
+    let until = $("t-until").value; if (!until || until <= date) until = "";
+    const prev = editingTodo, done = $("t-done").checked;
+    const t = {
+      ...(prev || {}), id: prev ? prev.id : "t_" + uid(), kind: "todo", title, date, until,
+      memo: $("t-memo").value.trim(), done, doneAt: done ? (prev && prev.doneAt) || Date.now() : null,
+      createdAt: prev ? prev.createdAt || Date.now() : Date.now(), updatedAt: Date.now()
+    };
+    closeTodoSheet();
+    if (view !== "todo") { selected = date < todayStr() && !done ? selected : date; const d = parse(selected); cursor = new Date(d.getFullYear(), d.getMonth(), 1); }
+    saveTodo(t, prev ? "수정했어요" : "할 일을 추가했어요");
+  });
+  tDel.addEventListener("click", async () => {
+    if (!editingTodo) return;
+    if (!tDel.classList.contains("armed")) { tDel.classList.add("armed"); tDel.textContent = "정말 삭제"; return; }
+    const id = editingTodo.id; closeTodoSheet();
+    try {
+      if (mode === "db") await colRef.doc(id).delete(); else { todos.delete(id); cache("local"); }
+      toast("삭제했어요");
+    } catch { toast("삭제하지 못했어요. 다시 시도해 주세요."); }
+    render();
   });
 
   // Plan sheet: one form for 버킷리스트 / 목표 / 세부 목표
@@ -1006,17 +1213,17 @@ textarea.in { min-height: 70px; resize: vertical; }
       let ready = false;
       col.onSnapshot(async (snap) => {
         if (!ready && snap.empty && snap.metadata.fromCache) return;
-        const map = new Map(), pmap = new Map();
-        snap.docs.forEach((d) => { const v = d.data(); if (v) (v.kind === "plan" ? pmap : map).set(d.id, { ...v, id: d.id }); });
+        const map = new Map(), pmap = new Map(), tmap = new Map();
+        snap.docs.forEach((d) => { const v = d.data(); if (v) (v.kind === "plan" ? pmap : v.kind === "todo" ? tmap : map).set(d.id, { ...v, id: d.id }); });
         if (!ready) {
           ready = true; colRef = col; mode = "db"; setStatus();
-          if (map.size + pmap.size === 0 && source === "local" && events.size + plans.size > 0) {
-            const local = [...events.values(), ...plans.values()];
+          if (map.size + pmap.size + tmap.size === 0 && source === "local" && events.size + plans.size + todos.size > 0) {
+            const local = [...events.values(), ...plans.values(), ...todos.values()];
             try { for (const x of local) await col.doc(x.id).set(x); toast("이 기기의 일정을 계정으로 옮겼어요"); } catch {}
             return;
           }
         }
-        events = map; plans = pmap; cache("db"); render();
+        events = map; plans = pmap; todos = tmap; cache("db"); render();
       }, () => { mode = "local"; colRef = null; setStatus(); toast("동기화가 끊겨 이 기기에 저장합니다"); });
     } catch {}
   }
@@ -1025,7 +1232,7 @@ textarea.in { min-height: 70px; resize: vertical; }
   window.__openDate = (ds) => {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(ds)) return;
     selected = ds; const d = parse(ds); cursor = new Date(d.getFullYear(), d.getMonth(), 1);
-    if (view === "plan") { view = "month"; lsSet(LS_VIEW, view); }
+    if (view === "plan" || view === "todo") { view = "month"; lsSet(LS_VIEW, view); }
     render();
   };
   setStatus(); render(); connect(); gInit();

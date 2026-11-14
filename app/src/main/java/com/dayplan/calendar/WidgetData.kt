@@ -14,7 +14,7 @@ sealed class Row {
     data class Head(val text: String, val date: String? = null) : Row()
     data class Empty(val text: String) : Row()
     data class Event(val time: String, val title: String, val color: Int, val date: String) : Row()
-    data class Goal(val id: String, val title: String, val sub: String, val done: Boolean, val late: Boolean) : Row()
+    data class Goal(val id: String, val title: String, val sub: String, val done: Boolean, val late: Boolean, val key: String = "cal.plans") : Row()
 }
 
 data class DayItem(val allDay: Boolean, val start: String, val title: String, val color: Int)
@@ -51,8 +51,22 @@ object WidgetData {
         }
     }
 
-    /** Events per day from [from] for [days] days: this app's own and the phone's calendars. */
-    fun eventsByDay(ctx: Context, from: LocalDate, days: Int): Map<LocalDate, List<DayItem>> {
+    private fun todoEnd(t: JSONObject): String {
+        val d = t.optString("date"); val u = t.optString("until")
+        return if (u.isNotEmpty() && u > d) u else d
+    }
+
+    /** Same rules as todosOn() in the page: the to-do's days, plus unfinished overdue ones on today. */
+    fun todosOn(ctx: Context, day: LocalDate): List<JSONObject> {
+        val ds = day.toString(); val today = LocalDate.now().toString()
+        return arr(ctx, "cal.todos").filter {
+            val d = it.optString("date"); val end = todoEnd(it)
+            d.isNotEmpty() && ((d <= ds && ds <= end) || (ds == today && !it.optBoolean("done") && end < today))
+        }.sortedWith(compareBy({ it.optBoolean("done") }, { it.optString("date") }, { it.optLong("createdAt") }))
+    }
+
+    /** Events per day from [from] for [days] days: this app's own and the phone's calendars, then unfinished to-dos. */
+    fun eventsByDay(ctx: Context, from: LocalDate, days: Int, withTodos: Boolean = true): Map<LocalDate, List<DayItem>> {
         val out = HashMap<LocalDate, MutableList<DayItem>>()
         val own = arr(ctx, "cal.events")
         for (i in 0 until days) {
@@ -80,6 +94,16 @@ object WidgetData {
             }
         }
         out.values.forEach { it.sortWith(compareBy<DayItem>({ !it.allDay }, { it.start }, { it.title })) }
+        if (withTodos) {
+            val accent = Color.parseColor("#0d7558")
+            for (i in 0 until days) {
+                val day = from.plusDays(i.toLong())
+                for (t in todosOn(ctx, day)) {
+                    if (t.optBoolean("done")) continue
+                    out.getOrPut(day) { mutableListOf() } += DayItem(false, "~", "☐ " + t.optString("title"), accent)
+                }
+            }
+        }
         return out
     }
 
@@ -89,8 +113,20 @@ object WidgetData {
         val today = LocalDate.now()
         val dow = sel.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.KOREAN)
         rows += Row.Head("${if (sel == today) "오늘 · " else ""}${sel.monthValue}월 ${sel.dayOfMonth}일 $dow", sel.toString())
-        val list = eventsByDay(ctx, sel, 1)[sel].orEmpty()
-        if (list.isEmpty()) rows += Row.Empty(if (CalendarRepo.hasPermission(ctx)) "일정이 없어요" else "앱을 열어 캘린더 접근을 허용해 주세요")
+        val list = eventsByDay(ctx, sel, 1, withTodos = false)[sel].orEmpty()
+        val todos = todosOn(ctx, sel)
+        if (list.isEmpty() && todos.isEmpty()) rows += Row.Empty(if (CalendarRepo.hasPermission(ctx)) "일정이 없어요" else "앱을 열어 캘린더 접근을 허용해 주세요")
+        val todayStr = today.toString()
+        for (t in todos) {
+            val end = todoEnd(t); val done = t.optBoolean("done")
+            val late = !done && end < todayStr
+            val sub = when {
+                late -> "${end.substring(5).replace("-", ".")}까지 · 지남"
+                end != t.optString("date") -> "${end.substring(5).replace("-", ".")}까지"
+                else -> "할 일"
+            }
+            rows += Row.Goal(t.optString("id"), t.optString("title"), sub, done, late, "cal.todos")
+        }
         list.forEach { rows += Row.Event(if (it.allDay) "종일" else it.start, it.title, it.color, sel.toString()) }
 
         val plans = arr(ctx, "cal.plans")
@@ -113,8 +149,9 @@ object WidgetData {
         return rows
     }
 
-    fun toggle(ctx: Context, id: String) {
-        val a = try { JSONArray(Store.get(ctx, "cal.plans") ?: "[]") } catch (e: Exception) { return }
+    fun toggle(ctx: Context, id: String, key: String = "cal.plans") {
+        if (key != "cal.plans" && key != "cal.todos") return
+        val a = try { JSONArray(Store.get(ctx, key) ?: "[]") } catch (e: Exception) { return }
         for (i in 0 until a.length()) {
             val p = a.optJSONObject(i) ?: continue
             if (p.optString("id") != id) continue
@@ -122,8 +159,8 @@ object WidgetData {
             val now = System.currentTimeMillis()
             p.put("done", done).put("doneAt", if (done) now else JSONObject.NULL).put("updatedAt", now)
         }
-        Store.put(ctx, "cal.plans", a.toString())
+        Store.put(ctx, key, a.toString())
         Store.bumpOutside(ctx)
-        PlanSync.syncAsync(ctx)
+        if (key == "cal.plans") PlanSync.syncAsync(ctx)
     }
 }

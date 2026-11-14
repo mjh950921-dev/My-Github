@@ -55,7 +55,7 @@ private class Factory(private val ctx: Context, private val widgetId: Int) : Rem
                 setTextColor(R.id.sub, ctx.getColor(if (r.late) R.color.late else R.color.muted))
                 setOnClickFillInIntent(
                     R.id.row,
-                    Intent().setAction(CalendarWidget.ACTION_TOGGLE).putExtra(CalendarWidget.EXTRA_ID, r.id)
+                    Intent().setAction(CalendarWidget.ACTION_TOGGLE).putExtra(CalendarWidget.EXTRA_ID, r.id).putExtra(CalendarWidget.EXTRA_KEY, r.key)
                 )
             }
         }

@@ -30,7 +30,10 @@ class CalendarWidget : AppWidgetProvider() {
     override fun onReceive(ctx: Context, intent: Intent) {
         val id = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1)
         when (intent.action) {
-            ACTION_TOGGLE -> { intent.getStringExtra(EXTRA_ID)?.let { WidgetData.toggle(ctx, it) }; refresh(ctx) }
+            ACTION_TOGGLE -> {
+                intent.getStringExtra(EXTRA_ID)?.let { WidgetData.toggle(ctx, it, intent.getStringExtra(EXTRA_KEY) ?: "cal.plans") }
+                refresh(ctx)
+            }
             ACTION_REFRESH -> refresh(ctx)
             ACTION_SELECT -> {
                 intent.getStringExtra(EXTRA_DATE)?.let { setSel(ctx, id, it) }
@@ -53,6 +56,7 @@ class CalendarWidget : AppWidgetProvider() {
         const val ACTION_MONTH = "com.dayplan.calendar.MONTH"
         const val ACTION_OPEN = "com.dayplan.calendar.OPEN"
         const val EXTRA_ID = "id"
+        const val EXTRA_KEY = "key"
         const val EXTRA_DATE = "date"
         const val EXTRA_DELTA = "delta"
 

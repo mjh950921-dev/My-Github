@@ -4,7 +4,7 @@
 (function () {
   var A = window.Android;
   if (!A) return;
-  var KEYS = { "cal.events": 1, "cal.plans": 1 };
+  var KEYS = { "cal.events": 1, "cal.plans": 1, "cal.todos": 1 };
   var setItem = Storage.prototype.setItem;
   try {
     for (var k in KEYS) { var v = A.load(k); if (v != null) setItem.call(localStorage, k, v); }
