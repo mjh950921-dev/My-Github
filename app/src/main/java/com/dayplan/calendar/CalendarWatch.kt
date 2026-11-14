@@ -18,10 +18,21 @@ import android.provider.CalendarContract.Calendars
  */
 class CalendarWatch : JobService() {
     override fun onStartJob(params: JobParameters): Boolean {
-        Store.bumpOutside(this)
-        CalendarWidget.refresh(this)
-        schedule(this) // a content trigger fires once, so watch again
-        return false
+        val ctx = applicationContext
+        Thread {
+            try {
+                // Goals or bucket-list items changed in the "DayPlan 목표" calendar: pull them in.
+                val plansChanged = PlanSync.sync(ctx)
+                Store.bumpOutside(ctx)
+                CalendarWidget.refresh(ctx)
+                // Reload an open app only for that; the app's own saves also land here.
+                if (plansChanged) MainActivity.current?.outsideChanged()
+            } finally {
+                schedule(ctx) // a content trigger fires once, so watch again
+                jobFinished(params, false)
+            }
+        }.start()
+        return true
     }
 
     override fun onStopJob(params: JobParameters) = false

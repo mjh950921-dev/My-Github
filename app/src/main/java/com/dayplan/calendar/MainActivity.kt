@@ -74,15 +74,28 @@ class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
+        current = this
         CalendarWatch.syncNow(this)
         CalendarWatch.schedule(this)
         // Goals checked off on the widget: show them.
         val v = Store.outsideVersion(this)
         if (v != seenOutside) { seenOutside = v; web.reload() }
+        // Goals changed in the "DayPlan 목표" calendar (n8n, Claude, another device): pull them in.
+        PlanSync.syncAsync(this) { outsideChanged() }
+    }
+
+    /** Reloads the page when data changed outside it while the app is open. Safe from any thread. */
+    fun outsideChanged() {
+        runOnUiThread {
+            if (isFinishing || isDestroyed) return@runOnUiThread
+            val v = Store.outsideVersion(this)
+            if (v != seenOutside) { seenOutside = v; web.reload() }
+        }
     }
 
     override fun onPause() {
         super.onPause()
+        if (current === this) current = null
         CalendarWidget.refresh(this)
     }
 
@@ -92,6 +105,7 @@ class MainActivity : Activity() {
             web.reload()
             CalendarWidget.refresh(this)
             CalendarWatch.schedule(this)
+            PlanSync.syncAsync(this) { outsideChanged() }
         }
     }
 
@@ -123,5 +137,8 @@ class MainActivity : Activity() {
     companion object {
         const val REQ_CAL = 7
         const val HOST = "appassets.androidplatform.net"
+
+        /** The activity while it is in front, so background sync can refresh the page. */
+        @Volatile var current: MainActivity? = null
     }
 }

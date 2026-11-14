@@ -124,5 +124,6 @@ object WidgetData {
         }
         Store.put(ctx, "cal.plans", a.toString())
         Store.bumpOutside(ctx)
+        PlanSync.syncAsync(ctx)
     }
 }
