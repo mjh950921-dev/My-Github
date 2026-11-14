@@ -42,7 +42,12 @@ object CalendarRepo {
             Instances.ALL_DAY, Instances.EVENT_LOCATION, Instances.DISPLAY_COLOR, Instances.STATUS
         )
         val out = ArrayList<Inst>()
-        ctx.contentResolver.query(uri, proj, "${Instances.VISIBLE}=1", null, "${Instances.BEGIN} ASC")?.use { c ->
+        ctx.contentResolver.query(
+            uri, proj,
+            // The goals calendar holds goals and the bucket list, not days' events (see PlanSync).
+            "${Instances.VISIBLE}=1 AND (${Instances.CALENDAR_DISPLAY_NAME} IS NULL OR ${Instances.CALENDAR_DISPLAY_NAME}!=?)",
+            arrayOf(PlanSync.CALENDAR_NAME), "${Instances.BEGIN} ASC"
+        )?.use { c ->
             while (c.moveToNext()) {
                 if (!c.isNull(7) && c.getInt(7) == Events.STATUS_CANCELED) continue
                 val begin = c.getLong(2)
@@ -93,8 +98,9 @@ object CalendarRepo {
         var best: Long? = null; var bestScore = -1
         ctx.contentResolver.query(
             Calendars.CONTENT_URI, proj,
-            "${Calendars.CALENDAR_ACCESS_LEVEL}>=${Calendars.CAL_ACCESS_CONTRIBUTOR} AND ${Calendars.VISIBLE}=1",
-            null, null
+            "${Calendars.CALENDAR_ACCESS_LEVEL}>=${Calendars.CAL_ACCESS_CONTRIBUTOR} AND ${Calendars.VISIBLE}=1" +
+                " AND (${Calendars.CALENDAR_DISPLAY_NAME} IS NULL OR ${Calendars.CALENDAR_DISPLAY_NAME}!=?)",
+            arrayOf(PlanSync.CALENDAR_NAME), null
         )?.use { c ->
             while (c.moveToNext()) {
                 val google = c.getString(1) == "com.google"

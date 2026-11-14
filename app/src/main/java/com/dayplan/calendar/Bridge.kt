@@ -14,6 +14,7 @@ class Bridge(private val activity: MainActivity) {
         Store.put(ctx, key, value)
         CalendarWidget.refresh(ctx)
         if (key == "cal.events") EventReminders.schedule(ctx)
+        if (key == "cal.plans") PlanSync.syncAsync(ctx) { activity.outsideChanged() }
     }
 
     @JavascriptInterface fun calPermission(): Boolean = CalendarRepo.hasPermission(ctx)
