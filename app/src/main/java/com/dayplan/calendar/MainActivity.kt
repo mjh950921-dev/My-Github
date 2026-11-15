@@ -57,13 +57,17 @@ class MainActivity : Activity() {
     }
 
     private var pendingDate: String? = null
+    private var pendingView: String = ""
 
-    private fun takeDate(i: Intent?) { pendingDate = i?.getStringExtra(CalendarWidget.EXTRA_DATE) }
+    private fun takeDate(i: Intent?) {
+        pendingDate = i?.getStringExtra(CalendarWidget.EXTRA_DATE)
+        pendingView = if (i?.getStringExtra(EXTRA_VIEW) == "routine") "routine" else ""
+    }
 
     private fun openPendingDate() {
         val d = pendingDate ?: return
         pendingDate = null
-        if (Regex("^\\d{4}-\\d{2}-\\d{2}$").matches(d)) web.evaluateJavascript("window.__openDate && window.__openDate('$d')", null)
+        if (Regex("^\\d{4}-\\d{2}-\\d{2}$").matches(d)) web.evaluateJavascript("window.__openDate && window.__openDate('$d', '$pendingView')", null)
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -136,6 +140,7 @@ class MainActivity : Activity() {
 
     companion object {
         const val REQ_CAL = 7
+        const val EXTRA_VIEW = "view"
         const val HOST = "appassets.androidplatform.net"
 
         /** The activity while it is in front, so background sync can refresh the page. */

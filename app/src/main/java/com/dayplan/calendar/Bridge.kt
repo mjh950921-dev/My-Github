@@ -13,7 +13,7 @@ class Bridge(private val activity: MainActivity) {
     @JavascriptInterface fun save(key: String, value: String) {
         Store.put(ctx, key, value)
         CalendarWidget.refresh(ctx)
-        if (key == "cal.events") EventReminders.schedule(ctx)
+        if (key == "cal.events" || key == "cal.routines") EventReminders.schedule(ctx)
         if (key == "cal.plans") PlanSync.syncAsync(ctx) { activity.outsideChanged() }
     }
 

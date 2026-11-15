@@ -65,6 +65,20 @@ object WidgetData {
         }.sortedWith(compareBy({ it.optBoolean("done") }, { it.optString("date") }, { it.optLong("createdAt") }))
     }
 
+    // Routines: same rules as rOn()/rCount() in the page. days: 0=Sun … 6=Sat; log: {"YYYY-MM-DD": times}.
+    private fun routineGoal(r: JSONObject) = r.optInt("goal", 1).coerceIn(1, 30)
+    fun routineCount(r: JSONObject, ds: String) = (r.optJSONObject("log")?.optInt(ds, 0) ?: 0).coerceIn(0, routineGoal(r))
+    fun routineDone(r: JSONObject, ds: String) = routineCount(r, ds) >= routineGoal(r)
+    fun routineOn(r: JSONObject, day: LocalDate): Boolean {
+        if (r.optBoolean("paused") || day.toString() < r.optString("start")) return false
+        val days = r.optJSONArray("days") ?: return false
+        val dow = day.dayOfWeek.value % 7
+        return (0 until days.length()).any { days.optInt(it, -1) == dow }
+    }
+    private val SLOT = listOf("morning", "day", "evening", "any")
+    fun routinesOn(ctx: Context, day: LocalDate): List<JSONObject> = arr(ctx, "cal.routines").filter { routineOn(it, day) }
+        .sortedWith(compareBy({ SLOT.indexOf(it.optString("slot", "any")) }, { it.optString("time").ifEmpty { "99" } }, { it.optLong("createdAt") }))
+
     /** Events per day from [from] for [days] days: this app's own and the phone's calendars, then unfinished to-dos. */
     fun eventsByDay(ctx: Context, from: LocalDate, days: Int, withTodos: Boolean = true): Map<LocalDate, List<DayItem>> {
         val out = HashMap<LocalDate, MutableList<DayItem>>()
@@ -115,7 +129,7 @@ object WidgetData {
         rows += Row.Head("${if (sel == today) "오늘 · " else ""}${sel.monthValue}월 ${sel.dayOfMonth}일 $dow", sel.toString())
         val list = eventsByDay(ctx, sel, 1, withTodos = false)[sel].orEmpty()
         val todos = todosOn(ctx, sel)
-        if (list.isEmpty() && todos.isEmpty()) rows += Row.Empty(if (CalendarRepo.hasPermission(ctx)) "일정이 없어요" else "앱을 열어 캘린더 접근을 허용해 주세요")
+        if (list.isEmpty() && todos.isEmpty() && (sel > today || routinesOn(ctx, sel).isEmpty())) rows += Row.Empty(if (CalendarRepo.hasPermission(ctx)) "일정이 없어요" else "앱을 열어 캘린더 접근을 허용해 주세요")
         val todayStr = today.toString()
         for (t in todos) {
             val end = todoEnd(t); val done = t.optBoolean("done")
@@ -126,6 +140,17 @@ object WidgetData {
                 else -> "할 일"
             }
             rows += Row.Goal(t.optString("id"), t.optString("title"), sub, done, late, "cal.todos")
+        }
+        // Today's (or a past day's) routines, checked off from the widget one tap at a time.
+        if (sel <= today) {
+            val rs = routinesOn(ctx, sel)
+            val ds = sel.toString()
+            for (r in rs) {
+                val g = routineGoal(r); val c = routineCount(r, ds)
+                val sub = if (g > 1) "루틴 · $c/$g${r.optString("unit").ifEmpty { "회" }}" else "루틴"
+                val title = listOf(r.optString("emoji"), r.optString("title")).filter { it.isNotEmpty() }.joinToString(" ")
+                rows += Row.Goal(r.optString("id") + "|" + ds, title, sub, c >= g, false, "cal.routines")
+            }
         }
         list.forEach { rows += Row.Event(if (it.allDay) "종일" else it.start, it.title, it.color, sel.toString()) }
 
@@ -150,6 +175,7 @@ object WidgetData {
     }
 
     fun toggle(ctx: Context, id: String, key: String = "cal.plans") {
+        if (key == "cal.routines") { tapRoutine(ctx, id); return }
         if (key != "cal.plans" && key != "cal.todos") return
         val a = try { JSONArray(Store.get(ctx, key) ?: "[]") } catch (e: Exception) { return }
         for (i in 0 until a.length()) {
@@ -162,5 +188,24 @@ object WidgetData {
         Store.put(ctx, key, a.toString())
         Store.bumpOutside(ctx)
         if (key == "cal.plans") PlanSync.syncAsync(ctx)
+    }
+
+    /** One tap on a routine row ("id|date"): one more time that day; a finished one goes back to zero. */
+    private fun tapRoutine(ctx: Context, key: String) {
+        val id = key.substringBefore("|"); val ds = key.substringAfter("|", "")
+        if (ds.isEmpty() || ds > LocalDate.now().toString()) return
+        val a = try { JSONArray(Store.get(ctx, "cal.routines") ?: "[]") } catch (e: Exception) { return }
+        for (i in 0 until a.length()) {
+            val r = a.optJSONObject(i) ?: continue
+            if (r.optString("id") != id) continue
+            val g = routineGoal(r); val c = routineCount(r, ds)
+            val next = if (c >= g) 0 else c + 1
+            val log = r.optJSONObject("log") ?: JSONObject()
+            if (next == 0) log.remove(ds) else log.put(ds, next)
+            r.put("log", log).put("updatedAt", System.currentTimeMillis())
+        }
+        Store.put(ctx, "cal.routines", a.toString())
+        Store.bumpOutside(ctx)
+        EventReminders.schedule(ctx)
     }
 }

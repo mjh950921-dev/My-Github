@@ -24,7 +24,7 @@ object EventReminders {
     private const val CHANNEL = "events"
     private const val ALL_DAY_HOUR = 9
 
-    private data class Due(val at: Long, val id: String, val title: String, val day: LocalDate, val label: String)
+    private data class Due(val at: Long, val id: String, val title: String, val day: LocalDate, val label: String, val routine: Boolean = false)
 
     private fun prefs(ctx: Context) = ctx.getSharedPreferences("reminders", Context.MODE_PRIVATE)
 
@@ -54,6 +54,19 @@ object EventReminders {
                     else -> "${before}분 후 · ${e.optString("start")}"
                 }
                 out += Due(at, e.optString("id"), e.optString("title"), day, label)
+                break
+            }
+        }
+        // Routines with a reminder time: announced on their days at that time, unless already done.
+        for (r in WidgetData.arr(ctx, "cal.routines")) {
+            val time = runCatching { LocalTime.parse(r.optString("time")) }.getOrNull() ?: continue
+            for (i in -1L..minOf(limitDays, 14L)) {
+                val day = today.plusDays(i)
+                if (!WidgetData.routineOn(r, day) || WidgetData.routineDone(r, day.toString())) continue
+                val at = LocalDateTime.of(day, time).atZone(zone).toInstant().toEpochMilli()
+                if (at <= after) continue
+                val title = listOf(r.optString("emoji"), r.optString("title")).filter { it.isNotEmpty() }.joinToString(" ")
+                out += Due(at, r.optString("id"), title, day, "루틴 · 아직 체크하지 않았어요", routine = true)
                 break
             }
         }
@@ -106,6 +119,7 @@ object EventReminders {
         val open = PendingIntent.getActivity(
             ctx, d.id.hashCode(),
             Intent(ctx, MainActivity::class.java).putExtra(CalendarWidget.EXTRA_DATE, d.day.toString())
+                .putExtra(MainActivity.EXTRA_VIEW, if (d.routine) "routine" else "")
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
@@ -114,7 +128,7 @@ object EventReminders {
             .setSmallIcon(R.drawable.ic_notify)
             .setContentTitle(d.title.ifBlank { "일정" })
             .setContentText(d.label)
-            .setCategory(android.app.Notification.CATEGORY_EVENT)
+            .setCategory(if (d.routine) android.app.Notification.CATEGORY_REMINDER else android.app.Notification.CATEGORY_EVENT)
             .setContentIntent(open)
             .setAutoCancel(true)
             .build()
