@@ -37,3 +37,14 @@ jobs:
           gh release create "v${{ github.run_number }}" calendar.apk \
             --title "내 달력 v1.0.${{ github.run_number }}" \
             --notes "폰에서 calendar.apk를 받아 설치하세요." --latest
+      # A build started by hand from a feature branch becomes a pre-release, so it can be
+      # downloaded straight to a phone for trying out. It never becomes the "latest" release.
+      - name: Publish preview
+        if: github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "preview-${{ github.run_number }}" calendar.apk \
+            --target "${{ github.sha }}" \
+            --title "내 달력 미리보기 ${{ github.run_number }} (${{ github.ref_name }})" \
+            --notes "써 보기용 빌드예요. 폰에서 calendar.apk를 받아 설치하세요." --prerelease --latest=false

@@ -8,7 +8,7 @@ import android.os.Bundle
 class WidgetActionActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        when (intent.action) {
+        when (intent.action ?: CalendarWidget.ACTION_TOGGLE.takeIf { intent.hasExtra(CalendarWidget.EXTRA_ID) }) {
             CalendarWidget.ACTION_TOGGLE -> {
                 intent.getStringExtra(CalendarWidget.EXTRA_ID)?.let {
                     WidgetData.toggle(this, it, intent.getStringExtra(CalendarWidget.EXTRA_KEY) ?: "cal.plans")
