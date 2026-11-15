@@ -2,4 +2,6 @@
     <string name="app_name">내 달력</string>
     <string name="widget_name">내 달력</string>
     <string name="widget_desc">한 달 달력과 이번 달 목표</string>
+    <string name="routine_widget_name">오늘 루틴</string>
+    <string name="routine_widget_desc">오늘 할 루틴을 바로 체크해요</string>
 </resources>

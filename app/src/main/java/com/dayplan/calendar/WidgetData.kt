@@ -69,15 +69,59 @@ object WidgetData {
     private fun routineGoal(r: JSONObject) = r.optInt("goal", 1).coerceIn(1, 30)
     fun routineCount(r: JSONObject, ds: String) = (r.optJSONObject("log")?.optInt(ds, 0) ?: 0).coerceIn(0, routineGoal(r))
     fun routineDone(r: JSONObject, ds: String) = routineCount(r, ds) >= routineGoal(r)
-    fun routineOn(r: JSONObject, day: LocalDate): Boolean {
+    /** Settings the page keeps in cal.rset: 루틴 모드, summary reminder times, … */
+    fun rset(ctx: Context): JSONObject = try { JSONObject(Store.get(ctx, "cal.rset") ?: "{}") } catch (e: Exception) { JSONObject() }
+
+    /** Same as modeOf() in the page: the mode a past day ran in, the current mode from today on ("" = 기본). */
+    fun modeOf(set: JSONObject, day: LocalDate): String {
+        val ids = set.optJSONArray("modes")?.let { a -> (0 until a.length()).map { a.optJSONObject(it)?.optString("id").orEmpty() } }.orEmpty()
+        val log = set.optJSONObject("modeLog")
+        val ds = day.toString()
+        val m = if (log != null && log.has(ds)) log.optString(ds) else if (day >= LocalDate.now()) set.optString("active") else ""
+        return if (m in ids) m else ""
+    }
+
+    fun routineRest(r: JSONObject, ds: String) = r.optJSONObject("rest")?.optInt(ds, 0) == 1
+
+    /** Same as rOn() in the page: not paused, started, on that weekday, and shown in that day's mode. */
+    fun routineOn(r: JSONObject, day: LocalDate, mode: String = ""): Boolean {
         if (r.optBoolean("paused") || day.toString() < r.optString("start")) return false
         val days = r.optJSONArray("days") ?: return false
         val dow = day.dayOfWeek.value % 7
-        return (0 until days.length()).any { days.optInt(it, -1) == dow }
+        if (!(0 until days.length()).any { days.optInt(it, -1) == dow }) return false
+        val modes = r.optJSONArray("modes")
+        return modes == null || modes.length() == 0 || (0 until modes.length()).any { modes.optString(it) == mode }
     }
     private val SLOT = listOf("morning", "day", "evening", "any")
-    fun routinesOn(ctx: Context, day: LocalDate): List<JSONObject> = arr(ctx, "cal.routines").filter { routineOn(it, day) }
-        .sortedWith(compareBy({ SLOT.indexOf(it.optString("slot", "any")) }, { it.optString("time").ifEmpty { "99" } }, { it.optLong("createdAt") }))
+    fun routinesOn(ctx: Context, day: LocalDate, set: JSONObject = rset(ctx)): List<JSONObject> {
+        val mode = modeOf(set, day)
+        return arr(ctx, "cal.routines").filter { routineOn(it, day, mode) }
+            .sortedWith(compareBy({ SLOT.indexOf(it.optString("slot", "any")) }, { it.optString("time").ifEmpty { "99" } }, { it.optLong("createdAt") }))
+    }
+
+    /** Routines to do that day (rest days left out), and how many are done. */
+    fun dayScore(ctx: Context, day: LocalDate): Pair<Int, Int> {
+        val l = routinesOn(ctx, day).filter { !routineRest(it, day.toString()) }
+        return l.count { routineDone(it, day.toString()) } to l.size
+    }
+
+    /** Rows for the routine widget and the calendar widget's day list. */
+    fun routineRows(ctx: Context, day: LocalDate): List<Row.Goal> {
+        val ds = day.toString()
+        return routinesOn(ctx, day).map { r ->
+            val g = routineGoal(r); val c = routineCount(r, ds); val rest = routineRest(r, ds)
+            val alt = r.optJSONObject("alog")?.optString(ds).orEmpty()
+            val sub = when {
+                rest -> "오늘은 쉬어요"
+                g > 1 -> "$c/$g${r.optString("unit").ifEmpty { "회" }}"
+                alt.isNotEmpty() && c >= g -> "${r.optString("title")} 대신"
+                r.optString("time").isNotEmpty() -> r.optString("time")
+                else -> mapOf("morning" to "아침", "day" to "낮", "evening" to "저녁").getOrDefault(r.optString("slot"), "언제든")
+            }
+            val title = listOf(r.optString("emoji"), if (alt.isNotEmpty() && c >= g) alt else r.optString("title")).filter { it.isNotEmpty() }.joinToString(" ")
+            Row.Goal(r.optString("id") + "|" + ds, title, sub, c >= g || rest, false, "cal.routines")
+        }
+    }
 
     /** Events per day from [from] for [days] days: this app's own and the phone's calendars, then unfinished to-dos. */
     fun eventsByDay(ctx: Context, from: LocalDate, days: Int, withTodos: Boolean = true): Map<LocalDate, List<DayItem>> {
@@ -142,16 +186,7 @@ object WidgetData {
             rows += Row.Goal(t.optString("id"), t.optString("title"), sub, done, late, "cal.todos")
         }
         // Today's (or a past day's) routines, checked off from the widget one tap at a time.
-        if (sel <= today) {
-            val rs = routinesOn(ctx, sel)
-            val ds = sel.toString()
-            for (r in rs) {
-                val g = routineGoal(r); val c = routineCount(r, ds)
-                val sub = if (g > 1) "루틴 · $c/$g${r.optString("unit").ifEmpty { "회" }}" else "루틴"
-                val title = listOf(r.optString("emoji"), r.optString("title")).filter { it.isNotEmpty() }.joinToString(" ")
-                rows += Row.Goal(r.optString("id") + "|" + ds, title, sub, c >= g, false, "cal.routines")
-            }
-        }
+        if (sel <= today) routineRows(ctx, sel).forEach { r -> rows += r.copy(sub = "루틴 · " + r.sub) }
         list.forEach { rows += Row.Event(if (it.allDay) "종일" else it.start, it.title, it.color, sel.toString()) }
 
         val plans = arr(ctx, "cal.plans")
@@ -191,7 +226,7 @@ object WidgetData {
     }
 
     /** One tap on a routine row ("id|date"): one more time that day; a finished one goes back to zero. */
-    private fun tapRoutine(ctx: Context, key: String) {
+    fun tapRoutine(ctx: Context, key: String, oneMore: Boolean = false) {
         val id = key.substringBefore("|"); val ds = key.substringAfter("|", "")
         if (ds.isEmpty() || ds > LocalDate.now().toString()) return
         val a = try { JSONArray(Store.get(ctx, "cal.routines") ?: "[]") } catch (e: Exception) { return }
@@ -199,7 +234,8 @@ object WidgetData {
             val r = a.optJSONObject(i) ?: continue
             if (r.optString("id") != id) continue
             val g = routineGoal(r); val c = routineCount(r, ds)
-            val next = if (c >= g) 0 else c + 1
+            val next = if (c >= g) (if (oneMore) g else 0) else c + 1
+            r.optJSONObject("rest")?.remove(ds)
             val log = r.optJSONObject("log") ?: JSONObject()
             if (next == 0) log.remove(ds) else log.put(ds, next)
             r.put("log", log).put("updatedAt", System.currentTimeMillis())

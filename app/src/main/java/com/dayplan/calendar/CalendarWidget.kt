@@ -79,6 +79,7 @@ class CalendarWidget : AppWidgetProvider() {
         }
 
         fun refresh(ctx: Context) {
+            RoutineWidget.refresh(ctx)
             val mgr = AppWidgetManager.getInstance(ctx)
             val ids = mgr.getAppWidgetIds(ComponentName(ctx, CalendarWidget::class.java))
             if (ids.isNotEmpty()) update(ctx, mgr, ids)

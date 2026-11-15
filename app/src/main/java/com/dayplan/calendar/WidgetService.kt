@@ -9,10 +9,12 @@ import android.widget.RemoteViewsService
 
 class WidgetService : RemoteViewsService() {
     override fun onGetViewFactory(intent: Intent): RemoteViewsFactory =
-        Factory(applicationContext, intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1))
+        Factory(applicationContext, intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1), intent.getStringExtra(EXTRA_KIND) == "routine")
+
+    companion object { const val EXTRA_KIND = "kind" }
 }
 
-private class Factory(private val ctx: Context, private val widgetId: Int) : RemoteViewsService.RemoteViewsFactory {
+private class Factory(private val ctx: Context, private val widgetId: Int, private val routine: Boolean = false) : RemoteViewsService.RemoteViewsFactory {
     private var rows: List<Row> = emptyList()
 
     override fun onCreate() {}
@@ -20,7 +22,10 @@ private class Factory(private val ctx: Context, private val widgetId: Int) : Rem
 
     override fun onDataSetChanged() {
         val token = Binder.clearCallingIdentity()
-        rows = try { WidgetData.listRows(ctx, CalendarWidget.selected(ctx, widgetId)) } catch (e: Exception) { listOf(Row.Empty("불러오지 못했어요")) }
+        rows = try {
+            if (routine) WidgetData.routineRows(ctx, java.time.LocalDate.now())
+            else WidgetData.listRows(ctx, CalendarWidget.selected(ctx, widgetId))
+        } catch (e: Exception) { listOf(Row.Empty("불러오지 못했어요")) }
         finally { Binder.restoreCallingIdentity(token) }
     }
 
